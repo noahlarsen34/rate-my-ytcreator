@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Search, UserRound, ChevronRight, Star, ExternalLink, SlidersHorizontal,
@@ -6,6 +6,8 @@ import {
   ShieldCheck, Sparkles, Flag, X, Check, Eye, EyeOff, LogOut, Menu
 } from 'lucide-react';
 import './styles.css';
+import './reviews.css';
+import { supabase } from './lib/supabase';
 
 const creators = [
   { id: 'maya-makes', name: 'Maya Makes', handle: '@mayamakes', initials: 'MM', color: '#ef4444', score: 4.8, reviews: 1284, category: 'DIY', audience: 'All ages', topic: 'Creative DIY & design', tagline: 'Big ideas, small tools.', description: 'Maya turns everyday materials into clever home projects. Her videos make design approachable with clear steps, honest budgets, and plenty of personality.', truth: 4.9, profanity: 1.1, substance: 1.0, ai: 'No', featured: true },
@@ -19,10 +21,33 @@ const creators = [
 ];
 
 const categories = ['All', ...new Set(creators.map(c => c.category))];
-const initialReviews = [
-  { creator: 'Orbit Lab', score: 5, date: 'Sep 18, 2026', text: 'Clear explanations and incredible visuals. I always learn something new.' },
-  { creator: 'Maya Makes', score: 4, date: 'Aug 30, 2026', text: 'Creative and easy to follow. Material lists could be a little clearer.' }
-];
+
+function creatorIdFromChannelLink(channelLink) {
+  const handle = channelLink?.match(/@([^/?#]+)/)?.[1]?.toLowerCase();
+  return creators.find(creator => creator.handle.slice(1).toLowerCase() === handle)?.id;
+}
+
+function formatReview(review, creatorId) {
+  const creator = creators.find(item => item.id === creatorId);
+
+  return {
+    id: review.review_id,
+    creatorId,
+    creator: creator?.name ?? 'Unknown creator',
+    score: review.overall_rating,
+    profanity: review.profanity,
+    substance: review.substance_use,
+    ageLevel: review.age_level,
+    usesAi: review.uses_ai,
+    text: review.review_text,
+    bias: review.bias_text,
+    date: new Date(review.created_at).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  };
+}
 
 function Avatar({ creator, size = 'md' }) {
   return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}><span>{creator.initials}</span><Play size={size === 'lg' ? 28 : 15} fill="currentColor" /></div>;
@@ -109,12 +134,19 @@ function Metric({ label, value, note, inverse = false }) {
   return <div className="metric"><div className="metric-top"><span>{label}</span><b>{value.toFixed(1)}<small>/5</small></b></div><div className="bar"><i style={{width: `${pct}%`}} /></div><p>{note}</p></div>;
 }
 
-function Profile({ creator, navigate }) {
+function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError }) {
   const [bug, setBug] = useState(false), [sent, setSent] = useState(false);
+  const creatorReviews = reviews.filter(review => review.creatorId === creator.id);
   return <main className="page profile-page"><button className="back" onClick={() => navigate('creators')}><ArrowLeft size={17}/> All creators</button>
     <section className="profile-hero"><Avatar creator={creator} size="xl"/><div className="profile-main"><span className="category">{creator.category}</span><h1>{creator.name}</h1><p className="handle">{creator.handle}</p><p className="tagline">“{creator.tagline}”</p><div className="profile-actions"><button className="primary" onClick={() => navigate('rate', creator.id)}><Star size={18}/> Rate this creator</button><button className="secondary" onClick={() => window.open('https://youtube.com', '_blank')}>YouTube channel <ExternalLink size={16}/></button></div></div><div className="score-card"><span>COMMUNITY SCORE</span><strong>{creator.score.toFixed(1)}</strong><Stars score={creator.score}/><p>Based on {creator.reviews.toLocaleString()} ratings</p></div></section>
     <div className="profile-grid"><section><div className="panel"><h2>At a glance</h2><p className="description">{creator.description}</p><div className="facts"><div><span>Content</span><b>{creator.topic}</b></div><div><span>Best for</span><b>{creator.audience}</b></div><div><span>Uses AI</span><b>{creator.ai}</b></div></div></div>
       <div className="panel"><div className="panel-head"><h2>Community ratings</h2><span>Last 90 days</span></div><Metric label="Truthfulness" value={creator.truth} note="Well-researched and transparent"/><Metric label="Family-friendly" value={6-creator.profanity} note="Based on language and themes"/><Metric label="Low substance mention" value={6-creator.substance} note="Frequency across recent content"/></div>
+      <div className="panel recent-reviews"><div className="panel-head"><h2>Recent reviews</h2><span>{creatorReviews.length} from database</span></div>
+        {reviewsLoading && <p className="review-status">Loading reviews…</p>}
+        {reviewsError && <p className="form-error">{reviewsError}</p>}
+        {!reviewsLoading && !reviewsError && creatorReviews.length === 0 && <p className="review-status">No reviews yet. Be the first to rate this creator.</p>}
+        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}</article>)}
+      </div>
     </section><aside><div className="panel verdict"><ShieldCheck/><h3>Why this score?</h3><p>Viewers consistently praise this creator’s clear presentation and honest approach. Ratings suggest reliable, age-appropriate content with strong educational value.</p></div><div className="panel rating-split"><h3>Rating breakdown</h3>{[[5,68],[4,22],[3,7],[2,2],[1,1]].map(([s,p])=><div key={s}><span>{s} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${p}%`}}/></i><small>{p}%</small></div>)}</div></aside></div>
     <button className="report-link" onClick={() => setBug(true)}><Flag size={15}/> See something incorrect? Report an issue</button>
     {bug && <div className="modal-backdrop" onMouseDown={() => setBug(false)}><div className="modal" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setBug(false)}><X/></button>{sent ? <div className="success"><Check/><h2>Thanks for the heads-up!</h2><p>We’ll review your report soon.</p><button className="primary" onClick={() => setBug(false)}>Done</button></div> : <><span className="kicker">REPORT AN ISSUE</span><h2>What doesn’t look right?</h2><p>Tell us what’s inaccurate on {creator.name}’s profile.</p><textarea placeholder="Describe the issue or correction…" rows="5"/><button className="primary full" onClick={() => setSent(true)}>Submit report</button></>}</div></div>}
@@ -137,21 +169,90 @@ function SettingsPage({ navigate, setLoggedIn }) {
   return <main className="page settings-page"><button className="back" onClick={() => navigate('dashboard')}><ArrowLeft size={17}/> Dashboard</button><div className="settings-head"><div><span className="kicker">ACCOUNT SETTINGS</span><h1>Your profile</h1><p>Manage your personal details and account information.</p></div><button className={editing?'primary':'secondary'} onClick={() => {if(editing)setSaved(true);setEditing(!editing)}}>{editing?'Save changes':'Edit profile'}</button></div>{saved&&<div className="save-note"><Check/> Your changes have been saved.</div>}<section className="panel settings-form"><h2>Personal information</h2>{[['Full name','Alex Morgan','text'],['Birthday','2002-06-15','date'],['Email address','alex@example.com','email'],['Username','alexreviews','text']].map(([label,value,type])=><div className="setting-row" key={label}><label>{label}</label>{editing?<input type={type} defaultValue={value}/>:<span>{value}</span>}</div>)}</section><button className="logout" onClick={() => {setLoggedIn(false);navigate('home')}}><LogOut size={17}/> Log out</button></main>;
 }
 
-function Rate({ navigate, selectedId, addReview }) {
-  const [wordCount,setWordCount]=useState(0), [done,setDone]=useState(false), [values,setValues]=useState({truth:'3',profanity:'1',substance:'1'});
-  const submit=e=>{e.preventDefault(); const f=new FormData(e.currentTarget); addReview({creator:f.get('creator'),score:Number(values.truth),date:'Today',text:f.get('review')});setDone(true)};
-  if(done)return <main className="page"><div className="submission-success"><div><Check/></div><span className="kicker">RATING SUBMITTED</span><h1>Thanks for sharing your take.</h1><p>Your rating has been added to the community. Every thoughtful review helps someone make a better choice.</p><button className="primary" onClick={()=>navigate('dashboard')}>View your dashboard</button><button className="text-button" onClick={()=>navigate('creators')}>Discover more creators</button></div></main>;
-  return <main className="page rating-page"><button className="back" onClick={()=>navigate(selectedId?'profile':'dashboard',selectedId)}><ArrowLeft size={17}/> Back</button><div className="form-heading"><span className="kicker">SHARE YOUR EXPERIENCE</span><h1>Rate a content creator</h1><p>Be honest, specific, and respectful. All fields are required.</p></div><form className="rating-form" onSubmit={submit}><section className="panel"><h2>About the creator</h2><label>Content creator<select name="creator" required defaultValue={selectedId?creators.find(c=>c.id===selectedId)?.name:''}><option value="" disabled>Choose a creator</option>{creators.map(c=><option key={c.id}>{c.name}</option>)}</select></label><label>Your review <span>{wordCount}/150 words</span><textarea name="review" required rows="6" placeholder="What stands out about this creator? What should new viewers know?" onChange={e=>{const words=e.target.value.trim().split(/\s+/).filter(Boolean);if(words.length<=150)setWordCount(words.length);else e.target.value=words.slice(0,150).join(' ')}}/></label><label>Any biases to disclose?<input name="bias" required placeholder="Example: I have followed this creator for 2 years"/></label></section><section className="panel"><h2>Content ratings</h2><RangeField label="Truthfulness" low="Misleading" high="Highly reliable" value={values.truth} set={v=>setValues({...values,truth:v})}/><label>Overall age-appropriateness<select required><option value="">Select an age range</option><option>All</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label><RangeField label="Profanity" low="None" high="Very frequent" value={values.profanity} set={v=>setValues({...values,profanity:v})}/><RangeField label="Substance use / mention" low="Never" high="Every video" value={values.substance} set={v=>setValues({...values,substance:v})}/><label>Does the creator use AI?<select required><option value="">Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label></section><button className="primary submit-rating">Submit rating <ChevronRight size={18}/></button></form></main>;
+function Rate({ navigate, selectedId, submitReview }) {
+  const [wordCount,setWordCount]=useState(0), [submitting,setSubmitting]=useState(false), [error,setError]=useState(''), [values,setValues]=useState({truth:'3',profanity:'1',substance:'1'});
+  const submit=async e=>{
+    e.preventDefault();
+    setSubmitting(true);
+    setError('');
+    const form = new FormData(e.currentTarget);
+    const creatorId = form.get('creator');
+
+    try {
+      await submitReview({ creatorId, overallRating:Number(values.truth), profanity:Number(values.profanity), substanceUse:Number(values.substance), ageLevel:form.get('ageLevel'), reviewText:form.get('review'), biasText:form.get('bias'), usesAi:form.get('usesAi') });
+      navigate('profile', creatorId);
+    } catch (submitError) {
+      setError(submitError.message || 'Your rating could not be submitted. Please try again.');
+      setSubmitting(false);
+    }
+  };
+  return <main className="page rating-page"><button className="back" onClick={()=>navigate(selectedId?'profile':'dashboard',selectedId)}><ArrowLeft size={17}/> Back</button><div className="form-heading"><span className="kicker">SHARE YOUR EXPERIENCE</span><h1>Rate a content creator</h1><p>Be honest, specific, and respectful. All fields are required.</p></div><form className="rating-form" onSubmit={submit}><section className="panel"><h2>About the creator</h2><label>Content creator<select name="creator" required defaultValue={selectedId || ''}><option value="" disabled>Choose a creator</option>{creators.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label>Your review <span>{wordCount}/150 words</span><textarea name="review" required rows="6" placeholder="What stands out about this creator? What should new viewers know?" onChange={e=>{const words=e.target.value.trim().split(/\s+/).filter(Boolean);if(words.length<=150)setWordCount(words.length);else e.target.value=words.slice(0,150).join(' ')}}/></label><label>Any biases to disclose?<input name="bias" required placeholder="Example: I have followed this creator for 2 years"/></label></section><section className="panel"><h2>Content ratings</h2><RangeField label="Truthfulness" low="Misleading" high="Highly reliable" value={values.truth} set={v=>setValues({...values,truth:v})}/><label>Overall age-appropriateness<select name="ageLevel" required><option value="">Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label><RangeField label="Profanity" low="None" high="Very frequent" value={values.profanity} set={v=>setValues({...values,profanity:v})}/><RangeField label="Substance use / mention" low="Never" high="Every video" value={values.substance} set={v=>setValues({...values,substance:v})}/><label>Does the creator use AI?<select name="usesAi" required><option value="">Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label></section>{error && <p className="submit-error" role="alert">{error}</p>}<button className="primary submit-rating" disabled={submitting}>{submitting ? 'Submitting…' : <>Submit rating <ChevronRight size={18}/></>}</button></form></main>;
 }
 
 function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
 
 function App() {
-  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [loggedIn,setLoggedIn]=useState(false), [reviews,setReviews]=useState(initialReviews);
+  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [loggedIn,setLoggedIn]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+
+  useEffect(() => {
+    async function loadDatabaseReviews() {
+      setReviewsLoading(true);
+      const [creatorsResult, reviewsResult] = await Promise.all([
+        supabase.from('content_creators').select('creator_id, channel_link'),
+        supabase.from('reviews').select('review_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
+      ]);
+
+      if (creatorsResult.error || reviewsResult.error) {
+        setReviewsError(creatorsResult.error?.message || reviewsResult.error?.message || 'Reviews could not be loaded.');
+        setReviewsLoading(false);
+        return;
+      }
+
+      const idMap = {};
+      creatorsResult.data.forEach(databaseCreator => {
+        const localId = creatorIdFromChannelLink(databaseCreator.channel_link);
+        if (localId) idMap[localId] = databaseCreator.creator_id;
+      });
+      const loadedReviews = reviewsResult.data.map(review => {
+        const localId = creatorIdFromChannelLink(review.content_creators?.channel_link);
+        return localId ? formatReview(review, localId) : null;
+      }).filter(Boolean);
+
+      setDatabaseCreatorIds(idMap);
+      setReviews(loadedReviews);
+      setReviewsError('');
+      setReviewsLoading(false);
+    }
+
+    loadDatabaseReviews();
+  }, []);
+
+  const submitReview = async review => {
+    const databaseCreatorId = databaseCreatorIds[review.creatorId];
+    if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
+
+    const { data, error } = await supabase.from('reviews').insert({
+      user_id:null,
+      creator_id:databaseCreatorId,
+      overall_rating:review.overallRating,
+      profanity:review.profanity,
+      substance_use:review.substanceUse,
+      age_level:review.ageLevel,
+      review_text:review.reviewText,
+      bias_text:review.biasText,
+      uses_ai:review.usesAi
+    }).select('review_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
+
+    if (error) throw new Error(error.message);
+    const insertedReview = formatReview(data, review.creatorId);
+    setReviews(currentReviews => [insertedReview, ...currentReviews]);
+    return insertedReview;
+  };
+
   const navigate=(next,id=null)=>{setSelected(id);setPage(next);window.scrollTo(0,0)};
   const creator=creators.find(c=>c.id===selected)||creators[0];
   const shell=!['signup','login'].includes(page);
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} loggedIn={loggedIn} setLoggedIn={setLoggedIn}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} setLoggedIn={setLoggedIn}/>} {page==='dashboard'&&<Dashboard navigate={navigate} reviews={reviews}/>} {page==='settings'&&<SettingsPage navigate={navigate} setLoggedIn={setLoggedIn}/>} {page==='rate'&&<Rate navigate={navigate} selectedId={selected} addReview={r=>setReviews([r,...reviews])}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} loggedIn={loggedIn} setLoggedIn={setLoggedIn}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} setLoggedIn={setLoggedIn}/>} {page==='dashboard'&&<Dashboard navigate={navigate} reviews={reviews}/>} {page==='settings'&&<SettingsPage navigate={navigate} setLoggedIn={setLoggedIn}/>} {page==='rate'&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);
