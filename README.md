@@ -14,6 +14,17 @@ npm run dev
 
 Open the local address shown by Vite (normally `http://localhost:5173`).
 
+The site works without database credentials, so contributors can browse the
+prototype immediately. To load and submit reviews, create `.env.local` with:
+
+```bash
+VITE_SUPABASE_URL=your-project-url
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+Restart `npm run dev` after adding or changing these values. Do not commit
+`.env.local`; it is intentionally ignored by Git.
+
 ## Prototype features
 
 - Creator discovery, live search, and multi-category filtering
@@ -24,4 +35,5 @@ Open the local address shown by Vite (normally `http://localhost:5173`).
 - Issue-reporting modal
 - Responsive desktop and mobile layouts
 
-All creator and account data is fictional and stored only in the current browser session.
+All creator and account data is fictional. Creator profiles are included in the
+app, while community reviews can be loaded from Supabase when configured.

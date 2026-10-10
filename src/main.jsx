@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import './reviews.css';
-import { supabase } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 const creators = [
   { id: 'maya-makes', name: 'Maya Makes', handle: '@mayamakes', initials: 'MM', color: '#ef4444', score: 4.8, reviews: 1284, category: 'DIY', audience: 'All ages', topic: 'Creative DIY & design', tagline: 'Big ideas, small tools.', description: 'Maya turns everyday materials into clever home projects. Her videos make design approachable with clear steps, honest budgets, and plenty of personality.', truth: 4.9, profanity: 1.1, substance: 1.0, ai: 'No', featured: true },
@@ -196,6 +196,11 @@ function App() {
 
   useEffect(() => {
     async function loadDatabaseReviews() {
+      if (!isSupabaseConfigured) {
+        setReviewsLoading(false);
+        return;
+      }
+
       setReviewsLoading(true);
       const [creatorsResult, reviewsResult] = await Promise.all([
         supabase.from('content_creators').select('creator_id, channel_link'),
@@ -228,6 +233,10 @@ function App() {
   }, []);
 
   const submitReview = async review => {
+    if (!isSupabaseConfigured) {
+      throw new Error('Review submissions require Supabase. Add the project variables to .env.local and restart the dev server.');
+    }
+
     const databaseCreatorId = databaseCreatorIds[review.creatorId];
     if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
 
