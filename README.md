@@ -15,27 +15,7 @@ Database: Supabase
 
 This approach fits our team as we want enough control to be able to iterate on the design as often as needed (something not possible with token-limited AI tools) while still having AI speed up that iteration process. With Codex we will be able to request larger changes from the AI as well as make personal, individual edits directly to the code. Supabase will work as both our backend and database hosting service to manage our data and communicate with the frontend. Our product relies mainly on frontend capabilities, not backend robustness, so having both the backend and database simplified into one service suites our needs.
 
-## Run locally
-
-```bash
-npm install
-npm run dev
-```
-
-Open the local address shown by Vite (normally `http://localhost:5173`).
-
-The site works without database credentials, so contributors can browse the
-prototype immediately. To load and submit reviews, create `.env.local` with:
-
-```bash
-VITE_SUPABASE_URL=your-project-url
-VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
-```
-
-Restart `npm run dev` after adding or changing these values. Do not commit
-`.env.local`; it is intentionally ignored by Git.
-
-## Prototype features
+# Prototype features
 
 - Creator discovery, live search, and multi-category filtering
 - Detailed creator profiles with scores, audience guidance, and rating breakdowns
