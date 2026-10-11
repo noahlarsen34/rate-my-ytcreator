@@ -29,7 +29,7 @@ This approach fits our team as we want enough control to be able to iterate on t
 All creator and account data is fictional. Creator profiles are included in the
 app, while community reviews can be loaded from Supabase when configured.
 
-## Run locally
+# Run locally
 
 1. Open the project folder in a terminal.
 2. Install the dependencies:
@@ -52,7 +52,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 Restart npm run dev after adding or changing these values. Do not commit .env.local; it is intentionally ignored by Git.
 
-## Vertical Slice - Review Button
+# Vertical Slice - Review Button
 To test the working review flow, make sure Supabase is configured as described above, then:
 1. Click Log in.
 2. Sign in with the sample account:
