@@ -62,4 +62,3 @@ To test the working review flow, make sure Supabase is configured as described a
 4. Fill out the review form and submit it.
 5. Refresh the page. You will be logged out because account sessions are not currently synced to the backend.
 6. Return to the creator’s profile. Your submitted review should appear in the review list.
-```
