@@ -7,11 +7,11 @@ A responsive React prototype for discovering, evaluating, and rating content cre
 
 # Tech Stack
 
-Frontend: React with Codex
+Frontend: React, JavaScript (JSX), Vite, CSS, Lucide React (made with Codex)
 
 Backend: Supabase
 
-Database: Supabase
+Database: PostgreSQL through Supabase
 
 This approach fits our team as we want enough control to be able to iterate on the design as often as needed (something not possible with token-limited AI tools) while still having AI speed up that iteration process. With Codex we will be able to request larger changes from the AI as well as make personal, individual edits directly to the code. Supabase will work as both our backend and database hosting service to manage our data and communicate with the frontend. Our product relies mainly on frontend capabilities, not backend robustness, so having both the backend and database simplified into one service suites our needs.
 
