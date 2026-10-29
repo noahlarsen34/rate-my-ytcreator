@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import './reviews.css';
+import './auth.css';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 const creators = [
@@ -67,15 +68,16 @@ function SearchBox({ value, setValue, onSubmit, compact = false }) {
   );
 }
 
-function Header({ navigate, query, setQuery, loggedIn, setLoggedIn }) {
+function Header({ navigate, query, setQuery, user }) {
   const [open, setOpen] = useState(false);
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
   return (
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
       <div className="nav-search"><SearchBox compact value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
       <nav className={open ? 'open' : ''}>
         <button onClick={() => navigate('creators')}>Discover</button>
-        {loggedIn ? <button className="account-chip" onClick={() => navigate('dashboard')}><UserRound size={18} /> Alex</button> : <><button onClick={() => navigate('login')}>Log in</button><button className="primary small" onClick={() => navigate('signup')}>Sign up</button></>}
+        {user ? <button className="account-chip" onClick={() => navigate('dashboard')}><UserRound size={18} /> {displayName}</button> : <><button onClick={() => navigate('login')}>Log in</button><button className="primary small" onClick={() => navigate('signup')}>Sign up</button></>}
       </nav>
       <button className="menu" onClick={() => setOpen(!open)}><Menu /></button>
     </header>
@@ -153,20 +155,52 @@ function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError }) {
   </main>;
 }
 
-function Auth({ type, navigate, setLoggedIn }) {
-  const signup = type === 'signup'; const [show, setShow] = useState(false), [error, setError] = useState('');
-  const submit = e => {e.preventDefault(); if (!e.currentTarget.checkValidity()) { setError('Please complete every required field.'); return; } setLoggedIn(true); navigate('dashboard');};
-  return <main className="auth-page"><section className="auth-side"><button className="brand light" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div><span className="kicker">JOIN THE COMMUNITY</span><h1>Your opinion helps shape the feed.</h1><p>Rate creators, save your favorites, and help people choose better content.</p></div><div className="auth-quote">“Finally, one place to see whether a channel is actually worth my time.”<span>— Community member</span></div></section><section className="auth-form"><div className="form-wrap"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><h2>{signup ? 'Create your account' : 'Welcome back'}</h2><p>{signup ? 'Start rating creators in just a minute.' : 'Log in to continue to your dashboard.'}</p><form onSubmit={submit} noValidate>{signup && <><label>Full name<input required autoComplete="name" placeholder="Alex Morgan"/></label><label>Birthday<input required type="date" autoComplete="bday"/></label></>}<label>Email address<input required type="email" autoComplete="email" placeholder="alex@example.com"/></label>{signup && <label>Username<input required autoComplete="username" placeholder="alexreviews"/></label>}<label>Password<div className="password"><input required minLength="8" type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} placeholder="At least 8 characters"/><button type="button" onClick={() => setShow(!show)}>{show?<EyeOff/>:<Eye/>}</button></div></label>{error && <p className="form-error">{error}</p>}<button className="primary full">{signup ? 'Create account' : 'Log in'} <ChevronRight size={18}/></button></form><p className="switch">{signup ? 'Already have an account?' : 'New here?'} <button onClick={() => navigate(signup?'login':'signup')}>{signup?'Log in':'Create an account'}</button></p></div></section></main>;
+function GoogleIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.38a4.6 4.6 0 0 1-2 3.02v2.53h3.24c1.9-1.75 2.98-4.33 2.98-7.39Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.38l-3.24-2.53c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.61A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.92A6.02 6.02 0 0 1 6.08 12c0-.67.11-1.32.31-1.92V7.47H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.53l3.35-2.61Z"/><path fill="#EA4335" d="M12 5.95c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.96 5.47l3.35 2.61C7.18 7.71 9.39 5.95 12 5.95Z"/></svg>;
 }
 
-function Dashboard({ navigate, reviews }) {
+function Auth({ type, navigate }) {
+  const signup = type === 'signup';
+  const [show, setShow] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [submitting, setSubmitting] = useState(false);
+  const signInWithGoogle = async () => {
+    setError(''); setNotice('');
+    if (!isSupabaseConfigured) { setError('Supabase is not configured. Add the project variables and restart the app.'); return; }
+    setSubmitting(true);
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({ provider:'google', options:{ redirectTo:`${window.location.origin}/?auth=callback` } });
+    if (oauthError) { setError(oauthError.message); setSubmitting(false); }
+  };
+  const submit = async e => {
+    e.preventDefault(); setError(''); setNotice('');
+    if (!e.currentTarget.checkValidity()) { setError('Please complete every required field.'); return; }
+    if (!isSupabaseConfigured) { setError('Supabase is not configured. Add the project variables and restart the app.'); return; }
+    setSubmitting(true);
+    const form = new FormData(e.currentTarget), email = form.get('email'), password = form.get('password');
+    if (signup) {
+      const { data, error: signupError } = await supabase.auth.signUp({ email, password, options:{ emailRedirectTo:`${window.location.origin}/?auth=callback`, data:{ full_name:form.get('fullName'), birthday:form.get('birthday'), username:form.get('username') } } });
+      if (signupError) setError(signupError.message);
+      else if (!data.session) setNotice('Check your email to confirm your account, then return here to log in.');
+      else navigate('dashboard');
+    } else {
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+      if (loginError) setError(loginError.message); else navigate('dashboard');
+    }
+    setSubmitting(false);
+  };
+  return <main className="auth-page"><section className="auth-side"><button className="brand light" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div><span className="kicker">JOIN THE COMMUNITY</span><h1>Your opinion helps shape the feed.</h1><p>Rate creators, save your favorites, and help people choose better content.</p></div><div className="auth-quote">“Finally, one place to see whether a channel is actually worth my time.”<span>— Community member</span></div></section><section className="auth-form"><div className="form-wrap"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><h2>{signup ? 'Create your account' : 'Welcome back'}</h2><p>{signup ? 'Start rating creators in just a minute.' : 'Log in to continue to your dashboard.'}</p><button type="button" className="google-button" onClick={signInWithGoogle} disabled={submitting}><GoogleIcon/> Continue with Google</button><div className="auth-divider"><span>or continue with email</span></div><form onSubmit={submit} noValidate>{signup && <><label>Full name<input name="fullName" required autoComplete="name" placeholder="Alex Morgan"/></label><label>Birthday<input name="birthday" required type="date" autoComplete="bday"/></label></>}<label>Email address<input name="email" required type="email" autoComplete="email" placeholder="alex@example.com"/></label>{signup && <label>Username<input name="username" required autoComplete="username" placeholder="alexreviews"/></label>}<label>Password<div className="password"><input name="password" required minLength="8" type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} placeholder="At least 8 characters"/><button type="button" onClick={() => setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?<EyeOff/>:<Eye/>}</button></div></label>{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}<button className="primary full" disabled={submitting}>{submitting?'Please wait…':signup?'Create account':'Log in'} {!submitting&&<ChevronRight size={18}/>}</button></form><p className="switch">{signup?'Already have an account?':'New here?'} <button onClick={() => navigate(signup?'login':'signup')}>{signup?'Log in':'Create an account'}</button></p></div></section></main>;
+}
+
+function Dashboard({ navigate, reviews, user }) {
   const following = creators.slice(0,3);
-  return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, Alex.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>12</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>12</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
 }
 
-function SettingsPage({ navigate, setLoggedIn }) {
+function SettingsPage({ navigate, user }) {
   const [editing, setEditing] = useState(false), [saved, setSaved] = useState(false);
-  return <main className="page settings-page"><button className="back" onClick={() => navigate('dashboard')}><ArrowLeft size={17}/> Dashboard</button><div className="settings-head"><div><span className="kicker">ACCOUNT SETTINGS</span><h1>Your profile</h1><p>Manage your personal details and account information.</p></div><button className={editing?'primary':'secondary'} onClick={() => {if(editing)setSaved(true);setEditing(!editing)}}>{editing?'Save changes':'Edit profile'}</button></div>{saved&&<div className="save-note"><Check/> Your changes have been saved.</div>}<section className="panel settings-form"><h2>Personal information</h2>{[['Full name','Alex Morgan','text'],['Birthday','2002-06-15','date'],['Email address','alex@example.com','email'],['Username','alexreviews','text']].map(([label,value,type])=><div className="setting-row" key={label}><label>{label}</label>{editing?<input type={type} defaultValue={value}/>:<span>{value}</span>}</div>)}</section><button className="logout" onClick={() => {setLoggedIn(false);navigate('home')}}><LogOut size={17}/> Log out</button></main>;
+  const logout = async () => { if (supabase) await supabase.auth.signOut(); navigate('home'); };
+  const metadata = user?.user_metadata || {};
+  const fields = [['Full name',metadata.full_name || metadata.name || 'Not provided','text'],['Birthday',metadata.birthday || 'Not provided','date'],['Email address',user?.email || 'Not provided','email'],['Username',metadata.username || 'Not provided','text']];
+  return <main className="page settings-page"><button className="back" onClick={() => navigate('dashboard')}><ArrowLeft size={17}/> Dashboard</button><div className="settings-head"><div><span className="kicker">ACCOUNT SETTINGS</span><h1>Your profile</h1><p>Manage your personal details and account information.</p></div><button className={editing?'primary':'secondary'} onClick={() => {if(editing)setSaved(true);setEditing(!editing)}}>{editing?'Save changes':'Edit profile'}</button></div>{saved&&<div className="save-note"><Check/> Profile persistence will be connected with the profiles table.</div>}<section className="panel settings-form"><h2>Personal information</h2>{fields.map(([label,value,type])=><div className="setting-row" key={label}><label>{label}</label>{editing?<input type={type} defaultValue={value==='Not provided'?'':value} disabled={label==='Email address'}/>:<span>{value}</span>}</div>)}</section><button className="logout" onClick={logout}><LogOut size={17}/> Log out</button></main>;
 }
 
 function Rate({ navigate, selectedId, submitReview }) {
@@ -192,7 +226,24 @@ function Rate({ navigate, selectedId, submitReview }) {
 function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
 
 function App() {
-  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [loggedIn,setLoggedIn]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const finishAuthCallback = nextSession => {
+      const params = new URLSearchParams(window.location.search);
+      if (nextSession && params.get('auth') === 'callback') {
+        setPage('dashboard');
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    };
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); finishAuthCallback(data.session); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      setSession(nextSession);
+      if (event === 'SIGNED_IN') finishAuthCallback(nextSession);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     async function loadDatabaseReviews() {
@@ -261,7 +312,7 @@ function App() {
   const navigate=(next,id=null)=>{setSelected(id);setPage(next);window.scrollTo(0,0)};
   const creator=creators.find(c=>c.id===selected)||creators[0];
   const shell=!['signup','login'].includes(page);
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} loggedIn={loggedIn} setLoggedIn={setLoggedIn}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} setLoggedIn={setLoggedIn}/>} {page==='dashboard'&&<Dashboard navigate={navigate} reviews={reviews}/>} {page==='settings'&&<SettingsPage navigate={navigate} setLoggedIn={setLoggedIn}/>} {page==='rate'&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate}/>} {page==='dashboard'&&<Dashboard navigate={navigate} reviews={reviews} user={session?.user}/>} {page==='settings'&&<SettingsPage navigate={navigate} user={session?.user}/>} {page==='rate'&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);

@@ -1,0 +1,39 @@
+.google-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #3a3a40;
+  border-radius: 9px;
+  color: #202124;
+  display: flex;
+  font-weight: 700;
+  gap: 11px;
+  height: 48px;
+  justify-content: center;
+  transition: .2s;
+  width: 100%;
+}
+
+.google-button:hover { background: #f2f2f2; border-color: #555; }
+.google-button:disabled, .primary:disabled { cursor: not-allowed; opacity: .65; transform: none !important; }
+.google-button svg { height: 20px; width: 20px; }
+
+.auth-divider {
+  align-items: center;
+  color: #71717a;
+  display: flex;
+  font-size: 12px;
+  gap: 13px;
+  margin: 22px 0 4px;
+}
+
+.auth-divider::before, .auth-divider::after { background: #2b2b30; content: ''; flex: 1; height: 1px; }
+.auth-divider span { white-space: nowrap; }
+
+.form-notice {
+  background: #14271e;
+  border: 1px solid #254a36;
+  border-radius: 9px;
+  color: #78d7a4 !important;
+  font-size: 13px;
+  padding: 10px 12px;
+}
