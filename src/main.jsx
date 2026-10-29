@@ -229,10 +229,12 @@ function RangeField({label,low,high,value,set}) {return <label className="range-
 function App() {
   const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
   const pendingDestination = useRef(null);
+  const signInNavigationHandled = useRef(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     const finishSignIn = nextSession => {
+      if (!nextSession || signInNavigationHandled.current) return;
       const params = new URLSearchParams(window.location.search);
       let destination = pendingDestination.current;
       try {
@@ -241,13 +243,12 @@ function App() {
         destination = null;
       }
       destination ||= { page: 'dashboard', id: null };
-      if (nextSession) {
-        setSelected(destination.id || null);
-        setPage(destination.page);
-        setRequiresAuth(false);
-        pendingDestination.current = null;
-        window.sessionStorage.removeItem('authReturnTo');
-      }
+      signInNavigationHandled.current = true;
+      setSelected(destination.id || null);
+      setPage(destination.page);
+      setRequiresAuth(false);
+      pendingDestination.current = null;
+      window.sessionStorage.removeItem('authReturnTo');
       if (params.get('auth') === 'callback') {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
@@ -261,6 +262,7 @@ function App() {
       setSession(nextSession);
       setAuthReady(true);
       if (event === 'SIGNED_IN') finishSignIn(nextSession);
+      if (event === 'SIGNED_OUT') signInNavigationHandled.current = false;
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -268,6 +270,7 @@ function App() {
   useEffect(() => {
     if (!authReady || session?.user || !protectedPages.has(page)) return;
     const destination = { page, id: selected };
+    signInNavigationHandled.current = false;
     pendingDestination.current = destination;
     window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
     setRequiresAuth(true);
@@ -341,6 +344,7 @@ function App() {
   const navigate=(next,id=null)=>{
     if (protectedPages.has(next) && !session?.user) {
       const destination = { page: next, id };
+      signInNavigationHandled.current = false;
       pendingDestination.current = destination;
       window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
       setRequiresAuth(true);
