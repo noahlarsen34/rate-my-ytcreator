@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Search, UserRound, ChevronRight, Star, ExternalLink, SlidersHorizontal,
@@ -22,6 +22,7 @@ const creators = [
 ];
 
 const categories = ['All', ...new Set(creators.map(c => c.category))];
+const protectedPages = new Set(['dashboard', 'settings', 'rate']);
 
 function creatorIdFromChannelLink(channelLink) {
   const handle = channelLink?.match(/@([^/?#]+)/)?.[1]?.toLowerCase();
@@ -159,7 +160,7 @@ function GoogleIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.06H12v3.9h5.38a4.6 4.6 0 0 1-2 3.02v2.53h3.24c1.9-1.75 2.98-4.33 2.98-7.39Z"/><path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.38l-3.24-2.53c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.61A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.39 13.92A6.02 6.02 0 0 1 6.08 12c0-.67.11-1.32.31-1.92V7.47H3.04A10 10 0 0 0 2 12c0 1.61.39 3.14 1.04 4.53l3.35-2.61Z"/><path fill="#EA4335" d="M12 5.95c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.96 5.47l3.35 2.61C7.18 7.71 9.39 5.95 12 5.95Z"/></svg>;
 }
 
-function Auth({ type, navigate }) {
+function Auth({ type, navigate, requiresAuth = false }) {
   const signup = type === 'signup';
   const [show, setShow] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [submitting, setSubmitting] = useState(false);
   const signInWithGoogle = async () => {
@@ -179,14 +180,14 @@ function Auth({ type, navigate }) {
       const { data, error: signupError } = await supabase.auth.signUp({ email, password, options:{ emailRedirectTo:`${window.location.origin}/?auth=callback`, data:{ full_name:form.get('fullName'), birthday:form.get('birthday'), username:form.get('username') } } });
       if (signupError) setError(signupError.message);
       else if (!data.session) setNotice('Check your email to confirm your account, then return here to log in.');
-      else navigate('dashboard');
+      // SIGNED_IN is handled centrally so guarded navigation can resume.
     } else {
       const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-      if (loginError) setError(loginError.message); else navigate('dashboard');
+      if (loginError) setError(loginError.message);
     }
     setSubmitting(false);
   };
-  return <main className="auth-page"><section className="auth-side"><button className="brand light" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div><span className="kicker">JOIN THE COMMUNITY</span><h1>Your opinion helps shape the feed.</h1><p>Rate creators, save your favorites, and help people choose better content.</p></div><div className="auth-quote">“Finally, one place to see whether a channel is actually worth my time.”<span>— Community member</span></div></section><section className="auth-form"><div className="form-wrap"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><h2>{signup ? 'Create your account' : 'Welcome back'}</h2><p>{signup ? 'Start rating creators in just a minute.' : 'Log in to continue to your dashboard.'}</p><button type="button" className="google-button" onClick={signInWithGoogle} disabled={submitting}><GoogleIcon/> Continue with Google</button><div className="auth-divider"><span>or continue with email</span></div><form onSubmit={submit} noValidate>{signup && <><label>Full name<input name="fullName" required autoComplete="name" placeholder="Alex Morgan"/></label><label>Birthday<input name="birthday" required type="date" autoComplete="bday"/></label></>}<label>Email address<input name="email" required type="email" autoComplete="email" placeholder="alex@example.com"/></label>{signup && <label>Username<input name="username" required autoComplete="username" placeholder="alexreviews"/></label>}<label>Password<div className="password"><input name="password" required minLength="8" type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} placeholder="At least 8 characters"/><button type="button" onClick={() => setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?<EyeOff/>:<Eye/>}</button></div></label>{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}<button className="primary full" disabled={submitting}>{submitting?'Please wait…':signup?'Create account':'Log in'} {!submitting&&<ChevronRight size={18}/>}</button></form><p className="switch">{signup?'Already have an account?':'New here?'} <button onClick={() => navigate(signup?'login':'signup')}>{signup?'Log in':'Create an account'}</button></p></div></section></main>;
+  return <main className="auth-page"><section className="auth-side"><button className="brand light" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div><span className="kicker">JOIN THE COMMUNITY</span><h1>Your opinion helps shape the feed.</h1><p>Rate creators, save your favorites, and help people choose better content.</p></div><div className="auth-quote">“Finally, one place to see whether a channel is actually worth my time.”<span>— Community member</span></div></section><section className="auth-form"><div className="form-wrap"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><h2>{signup ? 'Create your account' : 'Welcome back'}</h2><p>{requiresAuth ? 'Log in to continue where you left off.' : signup ? 'Start rating creators in just a minute.' : 'Log in to continue to your dashboard.'}</p>{requiresAuth&&<p className="auth-required" role="status"><ShieldCheck size={17}/> You need an account to access that page.</p>}<button type="button" className="google-button" onClick={signInWithGoogle} disabled={submitting}><GoogleIcon/> Continue with Google</button><div className="auth-divider"><span>or continue with email</span></div><form onSubmit={submit} noValidate>{signup && <><label>Full name<input name="fullName" required autoComplete="name" placeholder="Alex Morgan"/></label><label>Birthday<input name="birthday" required type="date" autoComplete="bday"/></label></>}<label>Email address<input name="email" required type="email" autoComplete="email" placeholder="alex@example.com"/></label>{signup && <label>Username<input name="username" required autoComplete="username" placeholder="alexreviews"/></label>}<label>Password<div className="password"><input name="password" required minLength="8" type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} placeholder="At least 8 characters"/><button type="button" onClick={() => setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?<EyeOff/>:<Eye/>}</button></div></label>{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}<button className="primary full" disabled={submitting}>{submitting?'Please wait…':signup?'Create account':'Log in'} {!submitting&&<ChevronRight size={18}/>}</button></form><p className="switch">{signup?'Already have an account?':'New here?'} <button onClick={() => navigate(signup?'login':'signup')}>{signup?'Log in':'Create an account'}</button></p></div></section></main>;
 }
 
 function Dashboard({ navigate, reviews, user }) {
@@ -226,24 +227,52 @@ function Rate({ navigate, selectedId, submitReview }) {
 function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
 
 function App() {
-  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const pendingDestination = useRef(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    const finishAuthCallback = nextSession => {
+    const finishSignIn = nextSession => {
       const params = new URLSearchParams(window.location.search);
-      if (nextSession && params.get('auth') === 'callback') {
-        setPage('dashboard');
+      let destination = pendingDestination.current;
+      try {
+        destination ||= JSON.parse(window.sessionStorage.getItem('authReturnTo'));
+      } catch {
+        destination = null;
+      }
+      destination ||= { page: 'dashboard', id: null };
+      if (nextSession) {
+        setSelected(destination.id || null);
+        setPage(destination.page);
+        setRequiresAuth(false);
+        pendingDestination.current = null;
+        window.sessionStorage.removeItem('authReturnTo');
+      }
+      if (params.get('auth') === 'callback') {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     };
-    supabase.auth.getSession().then(({ data }) => { setSession(data.session); finishAuthCallback(data.session); });
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+      if (data.session && new URLSearchParams(window.location.search).get('auth') === 'callback') finishSignIn(data.session);
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
-      if (event === 'SIGNED_IN') finishAuthCallback(nextSession);
+      setAuthReady(true);
+      if (event === 'SIGNED_IN') finishSignIn(nextSession);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!authReady || session?.user || !protectedPages.has(page)) return;
+    const destination = { page, id: selected };
+    pendingDestination.current = destination;
+    window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
+    setRequiresAuth(true);
+    setPage('login');
+  }, [authReady, page, selected, session]);
 
   useEffect(() => {
     async function loadDatabaseReviews() {
@@ -309,10 +338,28 @@ function App() {
     return insertedReview;
   };
 
-  const navigate=(next,id=null)=>{setSelected(id);setPage(next);window.scrollTo(0,0)};
+  const navigate=(next,id=null)=>{
+    if (protectedPages.has(next) && !session?.user) {
+      const destination = { page: next, id };
+      pendingDestination.current = destination;
+      window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
+      setRequiresAuth(true);
+      setPage('login');
+    } else {
+      if (!['login','signup'].includes(next)) {
+        pendingDestination.current = null;
+        window.sessionStorage.removeItem('authReturnTo');
+        setRequiresAuth(false);
+      }
+      setSelected(id);
+      setPage(next);
+    }
+    window.scrollTo(0,0);
+  };
   const creator=creators.find(c=>c.id===selected)||creators[0];
   const shell=!['signup','login'].includes(page);
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate}/>} {page==='dashboard'&&<Dashboard navigate={navigate} reviews={reviews} user={session?.user}/>} {page==='settings'&&<SettingsPage navigate={navigate} user={session?.user}/>} {page==='rate'&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  if (!authReady) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Restoring your session…</p></main>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);

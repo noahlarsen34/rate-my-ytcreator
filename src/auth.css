@@ -37,3 +37,27 @@
   font-size: 13px;
   padding: 10px 12px;
 }
+
+.auth-required {
+  align-items: center;
+  background: #211719;
+  border: 1px solid #493034;
+  border-radius: 9px;
+  color: #ff9a9e !important;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  margin: -8px 0 20px !important;
+  padding: 10px 12px;
+}
+
+.auth-loading {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.auth-loading p { color: #8b8b94; margin: 0; }
