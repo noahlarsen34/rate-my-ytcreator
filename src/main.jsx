@@ -140,14 +140,14 @@ function Metric({ label, value, note, inverse = false }) {
 function ReviewVotes({ user, navigate }) {
   const [vote, setVote] = useState(null);
   const [counts, setCounts] = useState({ up: 0, down: 0 });
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [loginPromptFor, setLoginPromptFor] = useState(null);
   const choose = next => {
-    if (!user) { setShowLoginPrompt(true); return; }
-    setShowLoginPrompt(false);
+    if (!user) { setLoginPromptFor(current => current === next ? null : next); return; }
+    setLoginPromptFor(null);
     setCounts(current => ({ up: current.up + (next === 'up' ? (vote === 'up' ? -1 : 1) : vote === 'up' ? -1 : 0), down: current.down + (next === 'down' ? (vote === 'down' ? -1 : 1) : vote === 'down' ? -1 : 0) }));
     setVote(vote === next ? null : next);
   };
-  return <div className="review-votes" aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{showLoginPrompt && <div className="vote-login-prompt" role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
+  return <div className="review-votes" aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
 }
 
 function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, user }) {
