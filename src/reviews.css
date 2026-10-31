@@ -1,0 +1,57 @@
+.submit-rating:disabled {
+  cursor: wait;
+  opacity: 0.7;
+  transform: none !important;
+}
+
+.submit-error {
+  color: #ff8589;
+  background: #291517;
+  border: 1px solid #57292d;
+  border-radius: 10px;
+  padding: 12px 15px;
+}
+
+.recent-reviews {
+  margin-top: 18px;
+}
+
+.review-status {
+  color: #898992;
+  font-size: 14px;
+}
+
+.profile-review {
+  padding: 18px 0;
+  border-top: 1px solid #29292e;
+}
+
+.profile-review:first-of-type {
+  border-top: 0;
+}
+
+.profile-review p {
+  color: #d1d1d5;
+  line-height: 1.55;
+  margin: 10px 0;
+}
+
+.profile-review small {
+  display: block;
+  color: #777780;
+  margin-top: 10px;
+}
+
+.review-details {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.review-details span {
+  font-size: 11px;
+  color: #aaaab2;
+  background: #222227;
+  border-radius: 6px;
+  padding: 5px 8px;
+}
