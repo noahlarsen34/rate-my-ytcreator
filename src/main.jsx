@@ -140,12 +140,14 @@ function Metric({ label, value, note, inverse = false }) {
 function ReviewVotes({ user, navigate }) {
   const [vote, setVote] = useState(null);
   const [counts, setCounts] = useState({ up: 0, down: 0 });
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const choose = next => {
-    if (!user) { navigate('login'); return; }
+    if (!user) { setShowLoginPrompt(true); return; }
+    setShowLoginPrompt(false);
     setCounts(current => ({ up: current.up + (next === 'up' ? (vote === 'up' ? -1 : 1) : vote === 'up' ? -1 : 0), down: current.down + (next === 'down' ? (vote === 'down' ? -1 : 1) : vote === 'down' ? -1 : 0) }));
     setVote(vote === next ? null : next);
   };
-  return <div className="review-votes" aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button></div>;
+  return <div className="review-votes" aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{showLoginPrompt && <div className="vote-login-prompt" role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
 }
 
 function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, user }) {
@@ -374,7 +376,8 @@ function App() {
   const creator=creators.find(c=>c.id===selected)||creators[0];
   const shell=!['signup','login'].includes(page);
   if (!authReady) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Restoring your session…</p></main>;
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);
+
