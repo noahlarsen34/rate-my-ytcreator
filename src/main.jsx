@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Search, UserRound, ChevronRight, Star, ExternalLink, SlidersHorizontal,
-  Settings, Bookmark, ThumbsUp, MessageSquareText, ArrowLeft, Play,
+  Settings, Bookmark, ThumbsUp, ThumbsDown, MessageSquareText, ArrowLeft, Play,
   ShieldCheck, Sparkles, Flag, X, Check, Eye, EyeOff, LogOut, Menu, CircleHelp
 } from 'lucide-react';
 import './styles.css';
@@ -137,7 +137,18 @@ function Metric({ label, value, note, inverse = false }) {
   return <div className="metric"><div className="metric-top"><span>{label}</span><b>{value.toFixed(1)}<small>/5</small></b></div><div className="bar"><i style={{width: `${pct}%`}} /></div><p>{note}</p></div>;
 }
 
-function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError }) {
+function ReviewVotes({ user, navigate }) {
+  const [vote, setVote] = useState(null);
+  const [counts, setCounts] = useState({ up: 0, down: 0 });
+  const choose = next => {
+    if (!user) { navigate('login'); return; }
+    setCounts(current => ({ up: current.up + (next === 'up' ? (vote === 'up' ? -1 : 1) : vote === 'up' ? -1 : 0), down: current.down + (next === 'down' ? (vote === 'down' ? -1 : 1) : vote === 'down' ? -1 : 0) }));
+    setVote(vote === next ? null : next);
+  };
+  return <div className="review-votes" aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button></div>;
+}
+
+function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, user }) {
   const [bug, setBug] = useState(false), [sent, setSent] = useState(false);
   const creatorReviews = reviews.filter(review => review.creatorId === creator.id);
   return <main className="page profile-page"><button className="back" onClick={() => navigate('creators')}><ArrowLeft size={17}/> All creators</button>
@@ -148,7 +159,7 @@ function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError }) {
         {reviewsLoading && <p className="review-status">Loading reviews…</p>}
         {reviewsError && <p className="form-error">{reviewsError}</p>}
         {!reviewsLoading && !reviewsError && creatorReviews.length === 0 && <p className="review-status">No reviews yet. Be the first to rate this creator.</p>}
-        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}</article>)}
+        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}<ReviewVotes user={user} navigate={navigate}/></article>)}
       </div>
     </section><aside><div className="panel rating-split"><h3 className="rating-split-title">Rating breakdown <span className="score-help"><button type="button" aria-label="Why this score?" aria-describedby="score-explanation"><CircleHelp size={18}/></button><span className="score-tooltip" role="tooltip" id="score-explanation">Viewers consistently praise this creator’s clear presentation and honest approach. Ratings suggest reliable, age-appropriate content with strong educational value.</span></span></h3>{[[5,68],[4,22],[3,7],[2,2],[1,1]].map(([s,p])=><div key={s}><span>{s} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${p}%`}}/></i><small>{p}%</small></div>)}</div></aside></div>
     <button className="report-link" onClick={() => setBug(true)}><Flag size={15}/> See something incorrect? Report an issue</button>
