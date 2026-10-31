@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import {
   Search, UserRound, ChevronRight, Star, ExternalLink, SlidersHorizontal,
   Settings, Bookmark, ThumbsUp, MessageSquareText, ArrowLeft, Play,
-  ShieldCheck, Sparkles, Flag, X, Check, Eye, EyeOff, LogOut, Menu
+  ShieldCheck, Sparkles, Flag, X, Check, Eye, EyeOff, LogOut, Menu, CircleHelp
 } from 'lucide-react';
 import './styles.css';
 import './reviews.css';
@@ -150,7 +150,7 @@ function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError }) {
         {!reviewsLoading && !reviewsError && creatorReviews.length === 0 && <p className="review-status">No reviews yet. Be the first to rate this creator.</p>}
         {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}</article>)}
       </div>
-    </section><aside><div className="panel rating-split"><h3>Rating breakdown</h3>{[[5,68],[4,22],[3,7],[2,2],[1,1]].map(([s,p])=><div key={s}><span>{s} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${p}%`}}/></i><small>{p}%</small></div>)}</div><div className="panel verdict"><ShieldCheck/><h3>Why this score?</h3><p>Viewers consistently praise this creator’s clear presentation and honest approach. Ratings suggest reliable, age-appropriate content with strong educational value.</p></div></aside></div>
+    </section><aside><div className="panel rating-split"><h3 className="rating-split-title">Rating breakdown <span className="score-help"><button type="button" aria-label="Why this score?" aria-describedby="score-explanation"><CircleHelp size={18}/></button><span className="score-tooltip" role="tooltip" id="score-explanation">Viewers consistently praise this creator’s clear presentation and honest approach. Ratings suggest reliable, age-appropriate content with strong educational value.</span></span></h3>{[[5,68],[4,22],[3,7],[2,2],[1,1]].map(([s,p])=><div key={s}><span>{s} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${p}%`}}/></i><small>{p}%</small></div>)}</div></aside></div>
     <button className="report-link" onClick={() => setBug(true)}><Flag size={15}/> See something incorrect? Report an issue</button>
     {bug && <div className="modal-backdrop" onMouseDown={() => setBug(false)}><div className="modal" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setBug(false)}><X/></button>{sent ? <div className="success"><Check/><h2>Thanks for the heads-up!</h2><p>We’ll review your report soon.</p><button className="primary" onClick={() => setBug(false)}>Done</button></div> : <><span className="kicker">REPORT AN ISSUE</span><h2>What doesn’t look right?</h2><p>Tell us what’s inaccurate on {creator.name}’s profile.</p><textarea placeholder="Describe the issue or correction…" rows="5"/><button className="primary full" onClick={() => setSent(true)}>Submit report</button></>}</div></div>}
   </main>;
