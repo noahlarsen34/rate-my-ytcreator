@@ -137,11 +137,15 @@ function Metric({ label, value, note, inverse = false }) {
   return <div className="metric"><div className="metric-top"><span>{label}</span><b>{value.toFixed(1)}<small>/5</small></b></div><div className="bar"><i style={{width: `${pct}%`}} /></div><p>{note}</p></div>;
 }
 
-function ReviewVotes({ user, navigate }) {
-  const [vote, setVote] = useState(null);
-  const [counts, setCounts] = useState({ up: 0, down: 0 });
+function ReviewVotes({ review, user, navigate }) {
+  const [vote, setVote] = useState(review.myVote ?? null);
+  const [counts, setCounts] = useState(review.voteCounts ?? { up: 0, down: 0 });
   const [loginPromptFor, setLoginPromptFor] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [voteError, setVoteError] = useState('');
   const voteControlsRef = useRef(null);
+  useEffect(() => { setVote(review.myVote ?? null); }, [review.myVote]);
+  useEffect(() => { setCounts(review.voteCounts ?? { up: 0, down: 0 }); }, [review.voteCounts]);
   useEffect(() => {
     if (!loginPromptFor) return;
     const dismissOutside = event => {
@@ -150,13 +154,26 @@ function ReviewVotes({ user, navigate }) {
     document.addEventListener('pointerdown', dismissOutside);
     return () => document.removeEventListener('pointerdown', dismissOutside);
   }, [loginPromptFor]);
-  const choose = next => {
+  const choose = async next => {
     if (!user) { setLoginPromptFor(current => current === next ? null : next); return; }
     setLoginPromptFor(null);
-    setCounts(current => ({ up: current.up + (next === 'up' ? (vote === 'up' ? -1 : 1) : vote === 'up' ? -1 : 0), down: current.down + (next === 'down' ? (vote === 'down' ? -1 : 1) : vote === 'down' ? -1 : 0) }));
-    setVote(vote === next ? null : next);
+    if (saving) return;
+    setSaving(true);
+    setVoteError('');
+    const nextVote = vote === next ? null : next;
+    const userId = user.id;
+    const result = nextVote
+      ? await supabase.from('review_votes').upsert({ review_id: review.id, user_id: userId, vote: nextVote === 'up' ? 1 : -1 }, { onConflict: 'review_id,user_id' })
+      : await supabase.from('review_votes').delete().eq('review_id', review.id).eq('user_id', userId);
+    setSaving(false);
+    if (result.error) { setVoteError('Your vote could not be saved. Please try again.'); return; }
+    setCounts(current => ({
+      up: current.up + (nextVote === 'up' ? (vote === 'up' ? 0 : 1) : vote === 'up' ? -1 : 0),
+      down: current.down + (nextVote === 'down' ? (vote === 'down' ? 0 : 1) : vote === 'down' ? -1 : 0)
+    }));
+    setVote(nextVote);
   };
-  return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
+  return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" disabled={saving} className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" disabled={saving} className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}{voteError && <span className="vote-error" role="alert">{voteError}</span>}</div>;
 }
 
 function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, user }) {
@@ -170,7 +187,7 @@ function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, use
         {reviewsLoading && <p className="review-status">Loading reviews…</p>}
         {reviewsError && <p className="form-error">{reviewsError}</p>}
         {!reviewsLoading && !reviewsError && creatorReviews.length === 0 && <p className="review-status">No reviews yet. Be the first to rate this creator.</p>}
-        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}<ReviewVotes user={user} navigate={navigate}/></article>)}
+        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}<ReviewVotes review={review} user={user} navigate={navigate}/></article>)}
       </div>
     </section><aside><div className="panel rating-split"><h3 className="rating-split-title">Rating breakdown <span className="score-help"><button type="button" aria-label="Why this score?" aria-describedby="score-explanation"><CircleHelp size={18}/></button><span className="score-tooltip" role="tooltip" id="score-explanation">Viewers consistently praise this creator’s clear presentation and honest approach. Ratings suggest reliable, age-appropriate content with strong educational value.</span></span></h3>{[[5,68],[4,22],[3,7],[2,2],[1,1]].map(([s,p])=><div key={s}><span>{s} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${p}%`}}/></i><small>{p}%</small></div>)}</div></aside></div>
     <button className="report-link" onClick={() => setBug(true)}><Flag size={15}/> See something incorrect? Report an issue</button>
@@ -328,14 +345,36 @@ function App() {
         return localId ? formatReview(review, localId) : null;
       }).filter(Boolean);
 
+      const reviewIds = loadedReviews.map(review => review.id);
+      let voteCounts = new Map();
+      let userVotes = new Map();
+      if (reviewIds.length) {
+        const voteQueries = [supabase.rpc('get_review_vote_counts', { p_review_ids: reviewIds })];
+        if (session?.user?.id) {
+          voteQueries.push(supabase.from('review_votes').select('review_id, vote').eq('user_id', session.user.id).in('review_id', reviewIds));
+        }
+        const [countsResult, userVotesResult] = await Promise.all(voteQueries);
+        if (countsResult.error) console.error('Review vote counts could not be loaded:', countsResult.error.message);
+        else voteCounts = new Map((countsResult.data || []).map(row => [String(row.review_id), { up: Number(row.upvotes), down: Number(row.downvotes) }]));
+        if (userVotesResult) {
+          if (userVotesResult.error) console.error('Your review votes could not be loaded:', userVotesResult.error.message);
+          else userVotes = new Map((userVotesResult.data || []).map(row => [String(row.review_id), Number(row.vote) === 1 ? 'up' : 'down']));
+        }
+      }
+      const reviewsWithVotes = loadedReviews.map(review => ({
+        ...review,
+        voteCounts: voteCounts.get(String(review.id)) || { up: 0, down: 0 },
+        myVote: userVotes.get(String(review.id)) || null
+      }));
+
       setDatabaseCreatorIds(idMap);
-      setReviews(loadedReviews);
+      setReviews(reviewsWithVotes);
       setReviewsError('');
       setReviewsLoading(false);
     }
 
     loadDatabaseReviews();
-  }, []);
+  }, [authReady, session?.user?.id]);
 
   const submitReview = async review => {
     if (!isSupabaseConfigured) {
