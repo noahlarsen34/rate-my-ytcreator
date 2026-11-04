@@ -52,11 +52,19 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 Restart npm run dev after adding or changing these values. Do not commit .env.local; it is intentionally ignored by Git.
 
+# Create an account
+Create an account to submit reviews and like existing reviews.
+1. Click Sign up.
+2. Sign up with Google, or fill in the required fields below the Google sign-in button.
+3. Click Create account.
+4. Confirm your email address.
+
+
 # Vertical Slice - Review Button
 To test the working review flow, make sure Supabase is configured as described above, then:
 1. Click Log in.
 2. Sign in with Google or a registered email/password account.
 3. Open any creator’s profile and click 'Rate this creator'.
 4. Fill out the review form and submit it.
-5. Refresh the page. Your authenticated session should remain active.
+5. Refresh the page. Your authenticated session should remain active
 6. Return to the creator’s profile. Your submitted review should appear in the review list.
