@@ -137,11 +137,15 @@ function Metric({ label, value, note, inverse = false }) {
   return <div className="metric"><div className="metric-top"><span>{label}</span><b>{value.toFixed(1)}<small>/5</small></b></div><div className="bar"><i style={{width: `${pct}%`}} /></div><p>{note}</p></div>;
 }
 
-function ReviewVotes({ user, navigate }) {
-  const [vote, setVote] = useState(null);
-  const [counts, setCounts] = useState({ up: 0, down: 0 });
+function ReviewVotes({ review, user, navigate }) {
+  const [vote, setVote] = useState(review.myVote ?? null);
+  const [counts, setCounts] = useState(review.voteCounts ?? { up: 0, down: 0 });
   const [loginPromptFor, setLoginPromptFor] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [voteError, setVoteError] = useState('');
   const voteControlsRef = useRef(null);
+  useEffect(() => { setVote(review.myVote ?? null); }, [review.myVote]);
+  useEffect(() => { setCounts(review.voteCounts ?? { up: 0, down: 0 }); }, [review.voteCounts]);
   useEffect(() => {
     if (!loginPromptFor) return;
     const dismissOutside = event => {
@@ -150,13 +154,26 @@ function ReviewVotes({ user, navigate }) {
     document.addEventListener('pointerdown', dismissOutside);
     return () => document.removeEventListener('pointerdown', dismissOutside);
   }, [loginPromptFor]);
-  const choose = next => {
+  const choose = async next => {
     if (!user) { setLoginPromptFor(current => current === next ? null : next); return; }
     setLoginPromptFor(null);
-    setCounts(current => ({ up: current.up + (next === 'up' ? (vote === 'up' ? -1 : 1) : vote === 'up' ? -1 : 0), down: current.down + (next === 'down' ? (vote === 'down' ? -1 : 1) : vote === 'down' ? -1 : 0) }));
-    setVote(vote === next ? null : next);
+    if (saving) return;
+    setSaving(true);
+    setVoteError('');
+    const nextVote = vote === next ? null : next;
+    const userId = user.id;
+    const result = nextVote
+      ? await supabase.from('review_votes').upsert({ review_id: review.id, user_id: userId, vote: nextVote === 'up' ? 1 : -1 }, { onConflict: 'review_id,user_id' })
+      : await supabase.from('review_votes').delete().eq('review_id', review.id).eq('user_id', userId);
+    setSaving(false);
+    if (result.error) { setVoteError('Your vote could not be saved. Please try again.'); return; }
+    setCounts(current => ({
+      up: current.up + (nextVote === 'up' ? (vote === 'up' ? 0 : 1) : vote === 'up' ? -1 : 0),
+      down: current.down + (nextVote === 'down' ? (vote === 'down' ? 0 : 1) : vote === 'down' ? -1 : 0)
+    }));
+    setVote(nextVote);
   };
-  return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a review.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
+  return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" disabled={saving} className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" disabled={saving} className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}{voteError && <span className="vote-error" role="alert">{voteError}</span>}</div>;
 }
 
 function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, user }) {
@@ -170,7 +187,7 @@ function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, use
         {reviewsLoading && <p className="review-status">Loading reviews…</p>}
         {reviewsError && <p className="form-error">{reviewsError}</p>}
         {!reviewsLoading && !reviewsError && creatorReviews.length === 0 && <p className="review-status">No reviews yet. Be the first to rate this creator.</p>}
-        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}<ReviewVotes user={user} navigate={navigate}/></article>)}
+        {creatorReviews.map(review => <article className="profile-review" key={review.id}><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Disclosure: {review.bias}</small>}<ReviewVotes review={review} user={user} navigate={navigate}/></article>)}
       </div>
     </section><aside><div className="panel rating-split"><h3 className="rating-split-title">Rating breakdown <span className="score-help"><button type="button" aria-label="Why this score?" aria-describedby="score-explanation"><CircleHelp size={18}/></button><span className="score-tooltip" role="tooltip" id="score-explanation">Viewers consistently praise this creator’s clear presentation and honest approach. Ratings suggest reliable, age-appropriate content with strong educational value.</span></span></h3>{[[5,68],[4,22],[3,7],[2,2],[1,1]].map(([s,p])=><div key={s}><span>{s} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${p}%`}}/></i><small>{p}%</small></div>)}</div></aside></div>
     <button className="report-link" onClick={() => setBug(true)}><Flag size={15}/> See something incorrect? Report an issue</button>
@@ -223,16 +240,58 @@ function generatedUsernameFor(user) {
 
 function Dashboard({ navigate, reviews, user }) {
   const following = creators.slice(0,3);
-  const displayName = user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
-  return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>12</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  const [helpfulVotes, setHelpfulVotes] = useState(null);
+  useEffect(() => {
+    let active = true;
+    async function loadHelpfulVotes() {
+      if (!supabase || !user?.id) { setHelpfulVotes(0); return; }
+      const { count, error } = await supabase.from('review_votes').select('review_id', { count: 'exact', head: true }).eq('user_id', user.id);
+      if (!active) return;
+      if (error) {
+        console.error('Helpful votes could not be loaded:', error.message);
+        setHelpfulVotes(null);
+      } else setHelpfulVotes(count ?? 0);
+    }
+    loadHelpfulVotes();
+    return () => { active = false; };
+  }, [user?.id]);
+  return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>{helpfulVotes === null ? '—' : helpfulVotes}</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
 }
 
 function SettingsPage({ navigate, user }) {
-  const [editing, setEditing] = useState(false), [saved, setSaved] = useState(false);
-  const logout = async () => { if (supabase) await supabase.auth.signOut(); navigate('home'); };
   const metadata = user?.user_metadata || {};
-  const fields = [['Full name',metadata.full_name || metadata.name || 'Not provided','text'],['Birthday',metadata.birthday || 'Not provided','date'],['Email address',user?.email || 'Not provided','email'],['Username',metadata.username || 'Not provided','text']];
-  return <main className="page settings-page"><button className="back" onClick={() => navigate('dashboard')}><ArrowLeft size={17}/> Dashboard</button><div className="settings-head"><div><span className="kicker">ACCOUNT SETTINGS</span><h1>Your profile</h1><p>Manage your personal details and account information.</p></div><button className={editing?'primary':'secondary'} onClick={() => {if(editing)setSaved(true);setEditing(!editing)}}>{editing?'Save changes':'Edit profile'}</button></div>{saved&&<div className="save-note"><Check/> Profile persistence will be connected with the profiles table.</div>}<section className="panel settings-form"><h2>Personal information</h2>{fields.map(([label,value,type])=><div className="setting-row" key={label}><label>{label}</label>{editing?<input type={type} defaultValue={value==='Not provided'?'':value} disabled={label==='Email address'}/>:<span>{value}</span>}</div>)}</section><button className="logout" onClick={logout}><LogOut size={17}/> Log out</button></main>;
+  const metadataName = metadata.full_name || metadata.name || '';
+  const [values, setValues] = useState({ firstName: metadata.given_name || metadataName.split(/\s+/)[0] || '', lastName: metadata.family_name || metadataName.split(/\s+/).slice(1).join(' ') || '', birthday: metadata.birthday || '', username: metadata.username || '', gender: '', phoneNumber: '' });
+  const [editing, setEditing] = useState(false), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('');
+  const logout = async () => { if (supabase) await supabase.auth.signOut(); navigate('home'); };
+  useEffect(() => {
+    let active = true;
+    async function loadProfile() {
+      if (!isSupabaseConfigured) { setError('Supabase is not configured. Profile changes cannot be saved.'); setLoading(false); return; }
+      const userResult = await supabase.from('users').select('first_name, last_name, birthdate, username, gender, phone_number, email').eq('user_id', user.id).maybeSingle();
+      if (!active) return;
+      if (userResult.error) setError(userResult.error.message || 'Your profile could not be loaded.');
+      const row = userResult.data || {};
+      setValues(current => ({ firstName: row.first_name ?? current.firstName, lastName: row.last_name ?? current.lastName, birthday: row.birthdate ?? current.birthday, username: row.username ?? current.username, gender: row.gender ?? current.gender, phoneNumber: row.phone_number ?? current.phoneNumber }));
+      setLoading(false);
+    }
+    loadProfile();
+    return () => { active = false; };
+  }, [user.id]);
+  const save = async () => {
+    setSaving(true); setError(''); setNotice('');
+    const { error: saveError } = await supabase.from('users').upsert({ user_id: user.id, first_name: values.firstName.trim(), last_name: values.lastName.trim(), birthdate: values.birthday || null, username: values.username.trim() || null, gender: values.gender || null, phone_number: values.phoneNumber.trim() || null }, { onConflict: 'user_id' });
+    if (saveError) setError(saveError.message || 'Your profile could not be saved.');
+    else { setEditing(false); setNotice('Your profile was saved.'); }
+    setSaving(false);
+  };
+  const birthdayMax = new Date();
+  birthdayMax.setFullYear(birthdayMax.getFullYear() - 5);
+  const birthdayMaxValue = `${birthdayMax.getFullYear()}-${String(birthdayMax.getMonth() + 1).padStart(2, '0')}-${String(birthdayMax.getDate()).padStart(2, '0')}`;
+  const field = (label, key, type = 'text') => <div className="setting-row" key={key}><label htmlFor={`profile-${key}`}>{label}</label>{editing ? <input id={`profile-${key}`} type={type} {...(key === 'birthday' ? { max: birthdayMaxValue } : {})} value={values[key]} onChange={event => setValues(current => ({ ...current, [key]: event.target.value }))} disabled={loading || saving} /> : <span>{values[key] || 'Not provided'}</span>}</div>;
+  const genderField = <div className="setting-row" key="gender"><label htmlFor="profile-gender">Gender</label>{editing ? <select id="profile-gender" value={values.gender} onChange={event => setValues(current => ({ ...current, gender: event.target.value }))} disabled={loading || saving}><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option><option value="Prefer Not to Say">Prefer Not to Say</option></select> : <span>{values.gender || 'Not provided'}</span>}</div>;
+  return <main className="page settings-page"><button className="back" onClick={() => navigate('dashboard')}><ArrowLeft size={17}/> Dashboard</button><div className="settings-head"><div><h1>Account settings</h1><p>View and edit your account information.</p></div></div>{loading&&<p role="status">Loading your profile…</p>}{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<div className="save-note" role="status"><Check/> {notice}</div>}<section className="panel settings-form"><div className="settings-panel-head"><h2 className="settings-section-title">Account information</h2>{!editing&&<button className="secondary" disabled={loading || !isSupabaseConfigured} onClick={() => (setError(''), setNotice(''), setEditing(true))}>Edit profile</button>}</div>{field('Username','username')}<div className="setting-row"><label>Email address</label><span>{user.email || 'Not provided'} <small className="email-readonly"> · Not editable here</small></span></div><h2 className="settings-section-title personal-section-title">Personal information</h2><div className="setting-pair">{field('First name','firstName')}{field('Last name','lastName')}</div>{field('Birthday','birthday','date')}{field('Phone number','phoneNumber','tel')}{genderField}{editing&&<div className="settings-actions"><button className="secondary" disabled={saving} onClick={() => setEditing(false)}>Cancel</button><button className="primary" disabled={saving || !isSupabaseConfigured} onClick={save}>{saving?'Saving…':'Save changes'}</button></div>}</section><button className="logout" onClick={logout}><LogOut size={17}/> Log out</button></main>;
 }
 
 function Rate({ navigate, selectedId, submitReview }) {
@@ -351,14 +410,36 @@ function App() {
         return localId ? formatReview(review, localId) : null;
       }).filter(Boolean);
 
+      const reviewIds = loadedReviews.map(review => review.id);
+      let voteCounts = new Map();
+      let userVotes = new Map();
+      if (reviewIds.length) {
+        const voteQueries = [supabase.rpc('get_review_vote_counts', { p_review_ids: reviewIds })];
+        if (session?.user?.id) {
+          voteQueries.push(supabase.from('review_votes').select('review_id, vote').eq('user_id', session.user.id).in('review_id', reviewIds));
+        }
+        const [countsResult, userVotesResult] = await Promise.all(voteQueries);
+        if (countsResult.error) console.error('Review vote counts could not be loaded:', countsResult.error.message);
+        else voteCounts = new Map((countsResult.data || []).map(row => [String(row.review_id), { up: Number(row.upvotes), down: Number(row.downvotes) }]));
+        if (userVotesResult) {
+          if (userVotesResult.error) console.error('Your review votes could not be loaded:', userVotesResult.error.message);
+          else userVotes = new Map((userVotesResult.data || []).map(row => [String(row.review_id), Number(row.vote) === 1 ? 'up' : 'down']));
+        }
+      }
+      const reviewsWithVotes = loadedReviews.map(review => ({
+        ...review,
+        voteCounts: voteCounts.get(String(review.id)) || { up: 0, down: 0 },
+        myVote: userVotes.get(String(review.id)) || null
+      }));
+
       setDatabaseCreatorIds(idMap);
-      setReviews(loadedReviews);
+      setReviews(reviewsWithVotes);
       setReviewsError('');
       setReviewsLoading(false);
     }
 
     loadDatabaseReviews();
-  }, []);
+  }, [authReady, session?.user?.id]);
 
   const submitReview = async review => {
     if (!isSupabaseConfigured) {
