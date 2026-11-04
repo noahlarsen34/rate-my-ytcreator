@@ -69,9 +69,9 @@ function SearchBox({ value, setValue, onSubmit, compact = false }) {
   );
 }
 
-function Header({ navigate, query, setQuery, user }) {
+function Header({ navigate, query, setQuery, user, profileUsername }) {
   const [open, setOpen] = useState(false);
-  const displayName = user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
+  const displayName = profileUsername || user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
   return (
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
@@ -259,7 +259,7 @@ function Dashboard({ navigate, reviews, user }) {
   return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>{helpfulVotes === null ? '—' : helpfulVotes}</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
 }
 
-function SettingsPage({ navigate, user }) {
+function SettingsPage({ navigate, user, onUsernameChanged }) {
   const metadata = user?.user_metadata || {};
   const metadataName = metadata.full_name || metadata.name || '';
   const [values, setValues] = useState({ firstName: metadata.given_name || metadataName.split(/\s+/)[0] || '', lastName: metadata.family_name || metadataName.split(/\s+/).slice(1).join(' ') || '', birthday: metadata.birthday || '', username: metadata.username || '', gender: '', phoneNumber: '' });
@@ -281,9 +281,10 @@ function SettingsPage({ navigate, user }) {
   }, [user.id]);
   const save = async () => {
     setSaving(true); setError(''); setNotice('');
-    const { error: saveError } = await supabase.from('users').upsert({ user_id: user.id, first_name: values.firstName.trim(), last_name: values.lastName.trim(), birthdate: values.birthday || null, username: values.username.trim() || null, gender: values.gender || null, phone_number: values.phoneNumber.trim() || null }, { onConflict: 'user_id' });
+    const savedUsername = values.username.trim();
+    const { error: saveError } = await supabase.from('users').upsert({ user_id: user.id, first_name: values.firstName.trim(), last_name: values.lastName.trim(), birthdate: values.birthday || null, username: savedUsername || null, gender: values.gender || null, phone_number: values.phoneNumber.trim() || null }, { onConflict: 'user_id' });
     if (saveError) setError(saveError.message || 'Your profile could not be saved.');
-    else { setEditing(false); setNotice('Your profile was saved.'); }
+    else { onUsernameChanged?.(savedUsername); setEditing(false); setNotice('Your profile was saved.'); }
     setSaving(false);
   };
   const birthdayMax = new Date();
@@ -317,10 +318,11 @@ function Rate({ navigate, selectedId, submitReview }) {
 function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
 
 function App() {
-  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [profileUsername,setProfileUsername]=useState(null);
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
+  const profileUsernameRequest = useRef(0);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -370,6 +372,27 @@ function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    const requestId = ++profileUsernameRequest.current;
+    if (!userId) {
+      setProfileUsername(null);
+      return;
+    }
+    if (!isSupabaseConfigured) return;
+    let active = true;
+    supabase.from('users').select('username').eq('user_id', userId).maybeSingle().then(({ data, error }) => {
+      if (!active || requestId !== profileUsernameRequest.current) return;
+      setProfileUsername(error ? null : data?.username || null);
+    });
+    return () => { active = false; };
+  }, [session?.user?.id]);
+
+  const handleUsernameChanged = username => {
+    profileUsernameRequest.current += 1;
+    setProfileUsername(username || null);
+  };
 
   useEffect(() => {
     if (!authReady || session?.user || !protectedPages.has(page)) return;
@@ -493,7 +516,7 @@ function App() {
   const creator=creators.find(c=>c.id===selected)||creators[0];
   const shell=!['signup','login'].includes(page);
   if (!authReady) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Restoring your session…</p></main>;
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profileUsername}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user} onUsernameChanged={handleUsernameChanged}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);
