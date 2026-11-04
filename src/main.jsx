@@ -71,7 +71,7 @@ function SearchBox({ value, setValue, onSubmit, compact = false }) {
 
 function Header({ navigate, query, setQuery, user }) {
   const [open, setOpen] = useState(false);
-  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
+  const displayName = user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
   return (
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
@@ -156,7 +156,7 @@ function ReviewVotes({ user, navigate }) {
     setCounts(current => ({ up: current.up + (next === 'up' ? (vote === 'up' ? -1 : 1) : vote === 'up' ? -1 : 0), down: current.down + (next === 'down' ? (vote === 'down' ? -1 : 1) : vote === 'down' ? -1 : 0) }));
     setVote(vote === next ? null : next);
   };
-  return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
+  return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a review.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>;
 }
 
 function Profile({ creator, navigate, reviews, reviewsLoading, reviewsError, user }) {
@@ -198,8 +198,9 @@ function Auth({ type, navigate, requiresAuth = false }) {
     if (!isSupabaseConfigured) { setError('Supabase is not configured. Add the project variables and restart the app.'); return; }
     setSubmitting(true);
     const form = new FormData(e.currentTarget), email = form.get('email'), password = form.get('password');
+    if (signup && password !== form.get('confirmPassword')) { setError('Passwords do not match.'); setSubmitting(false); return; }
     if (signup) {
-      const { data, error: signupError } = await supabase.auth.signUp({ email, password, options:{ emailRedirectTo:`${window.location.origin}/?auth=callback`, data:{ full_name:form.get('fullName'), birthday:form.get('birthday'), username:form.get('username') } } });
+      const { data, error: signupError } = await supabase.auth.signUp({ email, password, options:{ emailRedirectTo:`${window.location.origin}/?auth=callback`, data:{ username:form.get('username').trim() } } });
       if (signupError) setError(signupError.message);
       else if (!data.session) setNotice('Check your email to confirm your account, then return here to log in.');
       // SIGNED_IN is handled centrally so guarded navigation can resume.
@@ -209,12 +210,20 @@ function Auth({ type, navigate, requiresAuth = false }) {
     }
     setSubmitting(false);
   };
-  return <main className="auth-page"><section className="auth-side"><button className="brand light" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div><span className="kicker">JOIN THE COMMUNITY</span><h1>Your opinion helps shape the feed.</h1><p>Rate creators, save your favorites, and help people choose better content.</p></div><div className="auth-quote">“Finally, one place to see whether a channel is actually worth my time.”<span>— Community member</span></div></section><section className="auth-form"><div className="form-wrap"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><h2>{signup ? 'Create your account' : 'Welcome back'}</h2><p>{requiresAuth ? 'Log in to continue where you left off.' : signup ? 'Start rating creators in just a minute.' : 'Log in to continue to your dashboard.'}</p>{requiresAuth&&<p className="auth-required" role="status"><ShieldCheck size={17}/> You need an account to access that page.</p>}<button type="button" className="google-button" onClick={signInWithGoogle} disabled={submitting}><GoogleIcon/> Continue with Google</button><div className="auth-divider"><span>or continue with email</span></div><form onSubmit={submit} noValidate>{signup && <><label>Full name<input name="fullName" required autoComplete="name" placeholder="Alex Morgan"/></label><label>Birthday<input name="birthday" required type="date" autoComplete="bday"/></label></>}<label>Email address<input name="email" required type="email" autoComplete="email" placeholder="alex@example.com"/></label>{signup && <label>Username<input name="username" required autoComplete="username" placeholder="alexreviews"/></label>}<label>Password<div className="password"><input name="password" required minLength="8" type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} placeholder="At least 8 characters"/><button type="button" onClick={() => setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?<EyeOff/>:<Eye/>}</button></div></label>{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}<button className="primary full" disabled={submitting}>{submitting?'Please wait…':signup?'Create account':'Log in'} {!submitting&&<ChevronRight size={18}/>}</button></form><p className="switch">{signup?'Already have an account?':'New here?'} <button onClick={() => navigate(signup?'login':'signup')}>{signup?'Log in':'Create an account'}</button></p></div></section></main>;
+  return <main className="auth-page"><section className="auth-side"><button className="brand light" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div><span className="kicker">JOIN THE COMMUNITY</span><h1>Your opinion helps shape the feed.</h1><p>Rate creators, save your favorites, and help people choose better content.</p></div><div className="auth-quote">“Finally, one place to see whether a channel is actually worth my time.”<span>— Community member</span></div></section><section className="auth-form"><div className="form-wrap"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><h2>{signup ? 'Create your account' : 'Welcome back'}</h2><p>{requiresAuth ? 'Log in to continue where you left off.' : signup ? 'Start rating creators in just a minute.' : 'Log in to continue to your dashboard.'}</p>{requiresAuth&&<p className="auth-required" role="status"><ShieldCheck size={17}/> You need an account to access that page.</p>}<button type="button" className="google-button" onClick={signInWithGoogle} disabled={submitting}><GoogleIcon/> Continue with Google</button><div className="auth-divider"><span>or continue with email</span></div><form onSubmit={submit} noValidate><label>Email address<input name="email" required type="email" autoComplete="email" placeholder="alex@example.com"/></label>{signup && <label>Username<input name="username" required autoComplete="username" placeholder="alexreviews"/></label>}<label>Password<div className="password"><input name="password" required minLength={signup ? 8 : undefined} type={show?'text':'password'} autoComplete={signup?'new-password':'current-password'} placeholder="At least 8 characters"/><button type="button" onClick={() => setShow(!show)} aria-label={show?'Hide password':'Show password'}>{show?<EyeOff/>:<Eye/>}</button></div></label>{signup && <label>Confirm password<input name="confirmPassword" required minLength="8" type={show?'text':'password'} autoComplete="new-password" placeholder="Re-enter your password"/></label>}{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}<button className="primary full" disabled={submitting}>{submitting?'Please wait…':signup?'Create account':'Log in'} {!submitting&&<ChevronRight size={18}/>}</button></form><p className="switch">{signup?'Already have an account?':'New here?'} <button onClick={() => navigate(signup?'login':'signup')}>{signup?'Log in':'Create an account'}</button></p></div></section></main>;
+}
+
+function generatedUsernameFor(user) {
+  const metadata = user?.user_metadata || {};
+  const source = metadata.full_name || metadata.name || user?.email?.split('@')[0] || 'creator';
+  const base = source.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20).replace(/-+$/g, '') || 'creator';
+  const suffix = user.id.replace(/-/g, '').slice(-8).toLowerCase();
+  return `${base}-${suffix}`;
 }
 
 function Dashboard({ navigate, reviews, user }) {
   const following = creators.slice(0,3);
-  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  const displayName = user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
   return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>12</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
 }
 
@@ -252,11 +261,24 @@ function App() {
   const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
+  const usernameUpdatesInFlight = useRef(new Set());
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
+    const ensureUsername = authUser => {
+      if (!authUser?.id || authUser.user_metadata?.username || usernameUpdatesInFlight.current.has(authUser.id)) return;
+      usernameUpdatesInFlight.current.add(authUser.id);
+      const username = generatedUsernameFor(authUser);
+      window.setTimeout(() => {
+        void supabase.auth.updateUser({ data: { username } }).then(({ data, error }) => {
+          if (!error && data.user) setSession(current => current ? { ...current, user: data.user } : current);
+        }).catch(() => {}).finally(() => usernameUpdatesInFlight.current.delete(authUser.id));
+      }, 0);
+    };
     const finishSignIn = nextSession => {
-      if (!nextSession || signInNavigationHandled.current) return;
+      if (!nextSession) return;
+      ensureUsername(nextSession.user);
+      if (signInNavigationHandled.current) return;
       const params = new URLSearchParams(window.location.search);
       let destination = pendingDestination.current;
       try {
@@ -278,6 +300,7 @@ function App() {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setAuthReady(true);
+      ensureUsername(data.session?.user);
       if (data.session && new URLSearchParams(window.location.search).get('auth') === 'callback') finishSignIn(data.session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
@@ -342,11 +365,15 @@ function App() {
       throw new Error('Review submissions require Supabase. Add the project variables to .env.local and restart the dev server.');
     }
 
+    if (!session?.user?.id) {
+      throw new Error('Please log in with a valid account before submitting a review.');
+    }
+
     const databaseCreatorId = databaseCreatorIds[review.creatorId];
     if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
 
     const { data, error } = await supabase.from('reviews').insert({
-      user_id:null,
+      user_id:session.user.id,
       creator_id:databaseCreatorId,
       overall_rating:review.overallRating,
       profanity:review.profanity,
