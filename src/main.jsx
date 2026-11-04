@@ -219,7 +219,7 @@ function Auth({ type, navigate, requiresAuth = false }) {
     if (signup) {
       const { data, error: signupError } = await supabase.auth.signUp({ email, password, options:{ emailRedirectTo:`${window.location.origin}/?auth=callback`, data:{ username:form.get('username').trim() } } });
       if (signupError) setError(signupError.message);
-      else if (!data.session) setNotice('Check your email to confirm your account, then return here to log in.');
+      else if (!data.session) setNotice('Check your email to confirm your account, then return here to log in. If no email arrives, this address may already be linked to an account; try Continue with Google or log in with your existing method.');
       // SIGNED_IN is handled centrally so guarded navigation can resume.
     } else {
       const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });

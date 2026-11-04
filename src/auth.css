@@ -30,10 +30,10 @@
 .auth-divider span { white-space: nowrap; }
 
 .form-notice {
-  background: #14271e;
-  border: 1px solid #254a36;
+  background: #1c1c20;
+  border: 1px solid #34343a;
   border-radius: 9px;
-  color: #78d7a4 !important;
+  color: #c8c8cd !important;
   font-size: 13px;
   padding: 10px 12px;
 }
