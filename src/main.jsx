@@ -22,7 +22,11 @@ const creators = [
 ];
 
 const categories = ['All', ...new Set(creators.map(c => c.category))];
-const protectedPages = new Set(['dashboard', 'settings', 'rate']);
+const protectedPages = new Set(['dashboard', 'settings', 'rate', 'complete-profile']);
+
+function isProfileComplete(profile) {
+  return Boolean(profile?.first_name?.trim() && profile?.last_name?.trim() && profile?.birthdate && profile?.username?.trim());
+}
 
 function creatorIdFromChannelLink(channelLink) {
   const handle = channelLink?.match(/@([^/?#]+)/)?.[1]?.toLowerCase();
@@ -238,9 +242,59 @@ function generatedUsernameFor(user) {
   return `${base}-${suffix}`;
 }
 
-function Dashboard({ navigate, reviews, user }) {
+function profileDefaults(user, profile = {}) {
+  const metadata = user?.user_metadata || {};
+  const metadataName = metadata.full_name || metadata.name || '';
+  return {
+    firstName: profile.first_name ?? metadata.given_name ?? metadataName.split(/\s+/)[0] ?? '',
+    lastName: profile.last_name ?? metadata.family_name ?? metadataName.split(/\s+/).slice(1).join(' '),
+    birthdate: profile.birthdate ?? metadata.birthdate ?? metadata.birthday ?? '',
+    username: profile.username ?? metadata.username ?? generatedUsernameFor(user),
+    phoneNumber: profile.phone_number ?? '',
+    gender: ['M', 'F', 'other'].includes(profile.gender) ? profile.gender : '',
+  };
+}
+
+function CompleteProfile({ user, profile, onComplete, onLogout, initialError = '' }) {
+  const [values, setValues] = useState(() => profileDefaults(user, profile));
+  const [saving, setSaving] = useState(false), [error, setError] = useState(initialError);
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture;
+  const maxBirthdate = new Date().toISOString().slice(0, 10);
+  const update = (key, value) => setValues(current => ({ ...current, [key]: value }));
+  const submit = async event => {
+    event.preventDefault();
+    setError('');
+    if (!event.currentTarget.checkValidity()) {
+      setError('Please complete every required field.');
+      return;
+    }
+    setSaving(true);
+    const payload = {
+      user_id: user.id,
+      first_name: values.firstName.trim(),
+      last_name: values.lastName.trim(),
+      birthdate: values.birthdate,
+      username: values.username.trim(),
+      phone_number: values.phoneNumber.trim() || null,
+      gender: values.gender || null,
+      email: user.email,
+      avatar_url: avatarUrl || null,
+    };
+    const { data, error: saveError } = await supabase.from('users').upsert(payload, { onConflict: 'user_id' }).select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').single();
+    if (saveError) {
+      if (saveError.code === '23505') setError('That username is already taken. Please choose another one.');
+      else setError(saveError.message || 'Your profile could not be saved. Please try again.');
+      setSaving(false);
+      return;
+    }
+    onComplete(data);
+  };
+  return <main className="onboarding-page"><section className="onboarding-card"><button className="brand onboarding-brand" type="button" disabled><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><div className="onboarding-heading">{avatarUrl ? <img src={avatarUrl} alt="" referrerPolicy="no-referrer"/> : <span className="onboarding-avatar"><UserRound/></span>}<div><span className="kicker">ONE LAST STEP</span><h1>Complete your profile</h1><p>Tell us a little more before you start rating creators.</p></div></div><form className="onboarding-form" onSubmit={submit} noValidate><div className="onboarding-grid"><label>First name<input required autoComplete="given-name" value={values.firstName} onChange={event => update('firstName', event.target.value)} /></label><label>Last name<input required autoComplete="family-name" value={values.lastName} onChange={event => update('lastName', event.target.value)} /></label></div><label>Username<input required minLength="3" maxLength="30" pattern="[A-Za-z0-9_-]+" autoComplete="username" value={values.username} onChange={event => update('username', event.target.value)} /><small>3–30 characters; letters, numbers, underscores, and hyphens.</small></label><label>Birthdate<input required type="date" autoComplete="bday" max={maxBirthdate} value={values.birthdate} onChange={event => update('birthdate', event.target.value)} /></label><label>Email address<input type="email" value={user.email || ''} readOnly/><small>Your sign-in email cannot be changed here.</small></label><div className="onboarding-grid optional"><label>Phone number <span>Optional</span><input type="tel" autoComplete="tel" value={values.phoneNumber} onChange={event => update('phoneNumber', event.target.value)} /></label><label>Gender <span>Optional</span><select value={values.gender} onChange={event => update('gender', event.target.value)}><option value="">Prefer not to say</option><option value="M">M</option><option value="F">F</option><option value="other">Other</option></select></label></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full" disabled={saving}>{saving ? 'Saving…' : <>Save and continue <ChevronRight size={18}/></>}</button></form><button className="onboarding-logout" type="button" onClick={onLogout}><LogOut size={16}/> Log out</button></section></main>;
+}
+
+function Dashboard({ navigate, reviews, user, profile }) {
   const following = creators.slice(0,3);
-  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  const displayName = profile?.first_name || profile?.username || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
   const [helpfulVotes, setHelpfulVotes] = useState(null);
   useEffect(() => {
     let active = true;
@@ -259,17 +313,16 @@ function Dashboard({ navigate, reviews, user }) {
   return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>{helpfulVotes === null ? '—' : helpfulVotes}</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
 }
 
-function SettingsPage({ navigate, user, onUsernameChanged }) {
-  const metadata = user?.user_metadata || {};
-  const metadataName = metadata.full_name || metadata.name || '';
-  const [values, setValues] = useState({ firstName: metadata.given_name || metadataName.split(/\s+/)[0] || '', lastName: metadata.family_name || metadataName.split(/\s+/).slice(1).join(' ') || '', birthday: metadata.birthday || '', username: metadata.username || '', gender: '', phoneNumber: '' });
+function SettingsPage({ navigate, user, profile, onProfileChanged }) {
+  const defaults = profileDefaults(user, profile);
+  const [values, setValues] = useState({ firstName: defaults.firstName, lastName: defaults.lastName, birthday: defaults.birthdate, username: defaults.username, gender: defaults.gender, phoneNumber: defaults.phoneNumber });
   const [editing, setEditing] = useState(false), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('');
   const logout = async () => { if (supabase) await supabase.auth.signOut(); navigate('home'); };
   useEffect(() => {
     let active = true;
     async function loadProfile() {
       if (!isSupabaseConfigured) { setError('Supabase is not configured. Profile changes cannot be saved.'); setLoading(false); return; }
-      const userResult = await supabase.from('users').select('first_name, last_name, birthdate, username, gender, phone_number, email').eq('user_id', user.id).maybeSingle();
+      const userResult = await supabase.from('users').select('user_id, first_name, last_name, birthdate, username, gender, phone_number, email, avatar_url').eq('user_id', user.id).maybeSingle();
       if (!active) return;
       if (userResult.error) setError(userResult.error.message || 'Your profile could not be loaded.');
       const row = userResult.data || {};
@@ -282,16 +335,25 @@ function SettingsPage({ navigate, user, onUsernameChanged }) {
   const save = async () => {
     setSaving(true); setError(''); setNotice('');
     const savedUsername = values.username.trim();
-    const { error: saveError } = await supabase.from('users').upsert({ user_id: user.id, first_name: values.firstName.trim(), last_name: values.lastName.trim(), birthdate: values.birthday || null, username: savedUsername || null, gender: values.gender || null, phone_number: values.phoneNumber.trim() || null }, { onConflict: 'user_id' });
-    if (saveError) setError(saveError.message || 'Your profile could not be saved.');
-    else { onUsernameChanged?.(savedUsername); setEditing(false); setNotice('Your profile was saved.'); }
+    if (!values.firstName.trim() || !values.lastName.trim() || !values.birthday || !savedUsername) {
+      setError('First name, last name, username, and birthdate are required.');
+      setSaving(false);
+      return;
+    }
+    if (!/^[A-Za-z0-9_-]{3,30}$/.test(savedUsername)) {
+      setError('Username must be 3–30 characters using letters, numbers, underscores, or hyphens.');
+      setSaving(false);
+      return;
+    }
+    const payload = { user_id: user.id, first_name: values.firstName.trim(), last_name: values.lastName.trim(), birthdate: values.birthday, username: savedUsername, gender: values.gender || null, phone_number: values.phoneNumber.trim() || null, email: user.email, avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || null };
+    const { data, error: saveError } = await supabase.from('users').upsert(payload, { onConflict: 'user_id' }).select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').single();
+    if (saveError) setError(saveError.code === '23505' ? 'That username is already taken.' : saveError.message || 'Your profile could not be saved.');
+    else { onProfileChanged?.(data); setEditing(false); setNotice('Your profile was saved.'); }
     setSaving(false);
   };
-  const birthdayMax = new Date();
-  birthdayMax.setFullYear(birthdayMax.getFullYear() - 5);
-  const birthdayMaxValue = `${birthdayMax.getFullYear()}-${String(birthdayMax.getMonth() + 1).padStart(2, '0')}-${String(birthdayMax.getDate()).padStart(2, '0')}`;
+  const birthdayMaxValue = new Date().toISOString().slice(0, 10);
   const field = (label, key, type = 'text') => <div className="setting-row" key={key}><label htmlFor={`profile-${key}`}>{label}</label>{editing ? <input id={`profile-${key}`} type={type} {...(key === 'birthday' ? { max: birthdayMaxValue } : {})} value={values[key]} onChange={event => setValues(current => ({ ...current, [key]: event.target.value }))} disabled={loading || saving} /> : <span>{values[key] || 'Not provided'}</span>}</div>;
-  const genderField = <div className="setting-row" key="gender"><label htmlFor="profile-gender">Gender</label>{editing ? <select id="profile-gender" value={values.gender} onChange={event => setValues(current => ({ ...current, gender: event.target.value }))} disabled={loading || saving}><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option><option value="Prefer Not to Say">Prefer Not to Say</option></select> : <span>{values.gender || 'Not provided'}</span>}</div>;
+  const genderField = <div className="setting-row" key="gender"><label htmlFor="profile-gender">Gender</label>{editing ? <select id="profile-gender" value={values.gender} onChange={event => setValues(current => ({ ...current, gender: event.target.value }))} disabled={loading || saving}><option value="">Prefer not to say</option><option value="M">M</option><option value="F">F</option><option value="other">Other</option></select> : <span>{values.gender || 'Not provided'}</span>}</div>;
   return <main className="page settings-page"><button className="back" onClick={() => navigate('dashboard')}><ArrowLeft size={17}/> Dashboard</button><div className="settings-head"><div><h1>Account settings</h1><p>View and edit your account information.</p></div></div>{loading&&<p role="status">Loading your profile…</p>}{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<div className="save-note" role="status"><Check/> {notice}</div>}<section className="panel settings-form"><div className="settings-panel-head"><h2 className="settings-section-title">Account information</h2>{!editing&&<button className="secondary" disabled={loading || !isSupabaseConfigured} onClick={() => (setError(''), setNotice(''), setEditing(true))}>Edit profile</button>}</div>{field('Username','username')}<div className="setting-row"><label>Email address</label><span>{user.email || 'Not provided'} <small className="email-readonly"> · Not editable here</small></span></div><h2 className="settings-section-title personal-section-title">Personal information</h2><div className="setting-pair">{field('First name','firstName')}{field('Last name','lastName')}</div>{field('Birthday','birthday','date')}{field('Phone number','phoneNumber','tel')}{genderField}{editing&&<div className="settings-actions"><button className="secondary" disabled={saving} onClick={() => setEditing(false)}>Cancel</button><button className="primary" disabled={saving || !isSupabaseConfigured} onClick={save}>{saving?'Saving…':'Save changes'}</button></div>}</section><button className="logout" onClick={logout}><LogOut size={17}/> Log out</button></main>;
 }
 
@@ -318,11 +380,12 @@ function Rate({ navigate, selectedId, submitReview }) {
 function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
 
 function App() {
-  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [profileUsername,setProfileUsername]=useState(null);
+  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
-  const profileUsernameRequest = useRef(0);
+  const profileRequest = useRef(0);
+  const authUserId = useRef(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -359,12 +422,17 @@ function App() {
       }
     };
     supabase.auth.getSession().then(({ data }) => {
+      authUserId.current = data.session?.user?.id || null;
+      setProfileReady(!data.session?.user);
       setSession(data.session);
       setAuthReady(true);
       ensureUsername(data.session?.user);
       if (data.session && new URLSearchParams(window.location.search).get('auth') === 'callback') finishSignIn(data.session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      const nextUserId = nextSession?.user?.id || null;
+      if (authUserId.current !== nextUserId) setProfileReady(!nextUserId);
+      authUserId.current = nextUserId;
       setSession(nextSession);
       setAuthReady(true);
       if (event === 'SIGNED_IN') finishSignIn(nextSession);
@@ -375,23 +443,31 @@ function App() {
 
   useEffect(() => {
     const userId = session?.user?.id;
-    const requestId = ++profileUsernameRequest.current;
+    const requestId = ++profileRequest.current;
     if (!userId) {
-      setProfileUsername(null);
+      setProfile(null);
+      setProfileError('');
+      setProfileReady(true);
       return;
     }
     if (!isSupabaseConfigured) return;
+    setProfileReady(false);
+    setProfileError('');
     let active = true;
-    supabase.from('users').select('username').eq('user_id', userId).maybeSingle().then(({ data, error }) => {
-      if (!active || requestId !== profileUsernameRequest.current) return;
-      setProfileUsername(error ? null : data?.username || null);
+    supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').eq('user_id', userId).maybeSingle().then(({ data, error }) => {
+      if (!active || requestId !== profileRequest.current) return;
+      setProfile(error ? null : data);
+      setProfileError(error ? error.message || 'Your profile could not be loaded.' : '');
+      setProfileReady(true);
     });
     return () => { active = false; };
   }, [session?.user?.id]);
 
-  const handleUsernameChanged = username => {
-    profileUsernameRequest.current += 1;
-    setProfileUsername(username || null);
+  const handleProfileChanged = nextProfile => {
+    profileRequest.current += 1;
+    setProfile(nextProfile);
+    setProfileError('');
+    setProfileReady(true);
   };
 
   useEffect(() => {
@@ -403,6 +479,34 @@ function App() {
     setRequiresAuth(true);
     setPage('login');
   }, [authReady, page, selected, session]);
+
+  useEffect(() => {
+    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || page === 'complete-profile') return;
+    const destination = protectedPages.has(page) ? { page, id: selected } : { page: 'dashboard', id: null };
+    window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
+    setPage('complete-profile');
+    window.scrollTo(0, 0);
+  }, [authReady, page, profile, profileReady, selected, session?.user]);
+
+  const finishProfile = nextProfile => {
+    handleProfileChanged(nextProfile);
+    let destination = { page: 'dashboard', id: null };
+    try {
+      destination = JSON.parse(window.sessionStorage.getItem('profileReturnTo')) || destination;
+    } catch {
+      // Use the dashboard fallback when stored navigation is invalid.
+    }
+    window.sessionStorage.removeItem('profileReturnTo');
+    setSelected(destination.id || null);
+    setPage(destination.page);
+    window.scrollTo(0, 0);
+  };
+
+  const logoutFromOnboarding = async () => {
+    window.sessionStorage.removeItem('profileReturnTo');
+    if (supabase) await supabase.auth.signOut();
+    setPage('home');
+  };
 
   useEffect(() => {
     async function loadDatabaseReviews() {
@@ -502,6 +606,9 @@ function App() {
       window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
       setRequiresAuth(true);
       setPage('login');
+    } else if (protectedPages.has(next) && next !== 'complete-profile' && profileReady && !isProfileComplete(profile)) {
+      window.sessionStorage.setItem('profileReturnTo', JSON.stringify({ page: next, id }));
+      setPage('complete-profile');
     } else {
       if (!['login','signup'].includes(next)) {
         pendingDestination.current = null;
@@ -514,9 +621,9 @@ function App() {
     window.scrollTo(0,0);
   };
   const creator=creators.find(c=>c.id===selected)||creators[0];
-  const shell=!['signup','login'].includes(page);
-  if (!authReady) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Restoring your session…</p></main>;
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profileUsername}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user} onUsernameChanged={handleUsernameChanged}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  const shell=!['signup','login','complete-profile'].includes(page);
+  if (!authReady || (session?.user && !profileReady)) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user} profile={profile}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user} profile={profile} onProfileChanged={handleProfileChanged}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);

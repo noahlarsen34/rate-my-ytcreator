@@ -22,6 +22,7 @@ This approach fits our team as we want enough control to be able to iterate on t
 - Rating form with required fields and 150-word limit
 - Ratings save with a supabase-supported database
 - Supabase email/password and Google authentication with persistent sessions
+- Required profile onboarding backed by the private `public.users` table
 - User dashboard and editable account settings
 - Issue-reporting modal
 - Responsive desktop and mobile layouts
