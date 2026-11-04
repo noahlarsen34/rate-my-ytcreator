@@ -19,3 +19,6 @@
 .settings-panel-head .secondary{padding:12px 17px;margin:8px;background:#d6d6da;color:#18181b;border-color:#c4c4c9}.personal-section-title{border-top:0!important}.settings-panel-head+.setting-row,.setting-pair{border-top:0}
 .setting-pair{grid-template-columns:1fr 1fr;column-gap:40px}.setting-pair .setting-row:first-child input{width:82%}
 
+.footer-link{border:0;background:none;color:#92929a;padding:0}.footer-link:hover{color:#fff}.legal-page{max-width:900px}.legal-heading{padding-bottom:32px;border-bottom:1px solid var(--line)}.legal-heading h1{font:800 48px/1.1 'Manrope';letter-spacing:-2px;margin:10px 0 15px}.legal-heading p{max-width:700px;color:#b2b2ba;font-size:17px;line-height:1.7}.legal-heading small{color:#777780}.legal-content{max-width:760px;padding-top:20px}.legal-content section{padding:22px 0;border-bottom:1px solid #25252a}.legal-content h2{font:700 22px 'Manrope';margin:0 0 12px}.legal-content p{color:#b0b0b8;line-height:1.75;margin:8px 0}.legal-content a{color:#ff686d}
+@media(max-width:800px){.legal-heading h1{font-size:38px}footer .footer-link{display:block}}
+
