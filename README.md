@@ -3,7 +3,12 @@
 A responsive React prototype for discovering, evaluating, and rating content creators. This website is designed to help parents and children make informed choices about YouTube creators and their content. Many content creators on YouTube are known to spread hate and bring inappropriate content to the platform. Users can search for creators, review information and ratings, and give their own review and rate them on specific metrics. These reviews can help families identify creators whose content may be inappropriate and decide whom to avoid. The goal is to help parents feel more confident about who their children is watching on YouTube.
 
 # ERD
-![Our website's Entity Relationship Diagram](YTcreatorERD.png)
+
+![1793834974501](image/README/1793834974501.png)
+
+# Tech Stack Architecture Diagram
+
+![1793834951624](image/README/1793834951624.png)
 
 # Tech Stack
 
@@ -38,14 +43,15 @@ app, while community reviews can be loaded from Supabase when configured.
 
    ```bash
    npm install
-
+   ```
 3. Start the development server:
-    ```bash
-   npm run dev
 
+   ```bash
+   npm run dev
+   ```
 4. Open the local address shown by Vita (normally http://localhost:5173).
-The site works without database credentials, so contributors can browse the 
-prototype immediately. To load and submit reviews, create `.env.local` with:
+   The site works without database credentials, so contributors can browse the
+   prototype immediately. To load and submit reviews, create `.env.local` with:
 
 ```bash
 VITE_SUPABASE_URL=your-project-url
@@ -63,7 +69,9 @@ Create an account to submit reviews and like existing reviews.
 
 
 # Vertical Slice - Review Button
+
 To test the working review flow, make sure Supabase is configured as described above, then:
+
 1. Click Log in.
 2. Sign in with Google or a registered email/password account.
 3. Open any creator’s profile and click 'Rate this creator'.
