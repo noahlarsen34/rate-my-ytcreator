@@ -1,35 +1,34 @@
 import { ArrowLeft } from 'lucide-react';
 
+const privacySections = [
+  ['Information collected by Rate My Creator', <><p>When you create an account, we collect your email address, first and last name, username, and birthdate. You may optionally provide a phone number and gender. We also collect creator ratings, reviews, disclosures, follows, and votes you submit.</p><p>Our service providers may process limited technical information required to operate and secure the application, including authentication records, timestamps, and browser or device information.</p></>],
+  ['Google user data we access', <><p>If you use Google to sign in, Google provides your Google account identifier, name, email address, and profile image. Rate My Creator never receives your Google password.</p><p>If you separately choose <strong>Connect YouTube</strong>, Rate My Creator requests read-only access to your YouTube account. This permits the application to retrieve the channels to which you subscribe, including their channel identifiers, names, and available thumbnails. Connecting YouTube is optional.</p></>],
+  ['How we use Google user data', <p>We use basic Google profile data to authenticate you, identify your Rate My Creator account, display account information, and secure your session. We use YouTube subscription data only to match subscribed channels with creators in our database, create corresponding follows, display available community ratings, and synchronize the feature when requested. We do not modify your YouTube account.</p>],
+  ['Sharing and disclosure', <><p>Your username, ratings, reviews, votes, and follows may be visible to other users. We use Supabase for authentication and database services, Vercel for hosting, and Google for sign-in and the optional YouTube connection. These processors receive information only as needed to provide their services.</p><p>We do not sell Google user data or other personal information, transfer it to data brokers, or use it for advertising, lending, or creditworthiness decisions.</p></>],
+  ['AI and prohibited uses', <p>Rate My Creator does not use Google user data to develop, improve, or train artificial intelligence or machine-learning models. It does not use Google APIs or Google user data to create, facilitate, promote, or distribute AI-generated non-consensual intimate imagery or other sexually exploitative content.</p>],
+  ['Storage and protection', <p>Account data is stored in Supabase-hosted PostgreSQL. We use HTTPS, authenticated sessions, least-privilege access, database row-level security, and restricted server-side access. Google OAuth refresh credentials, when stored for the optional YouTube connection, are encrypted and are not exposed through the public database.</p>],
+  ['Retention and deletion', <><p>We retain account information while your account is active and afterward only as reasonably necessary for service, security, dispute, or legal purposes. Google connection credentials and subscription-derived data are retained only while needed to provide the connected feature.</p><p>Disconnecting YouTube stops future access and removes stored connection credentials. When information is no longer required, we delete or anonymize it.</p></>],
+  ['Your choices and controls', <><p>You may update profile information through account settings and disconnect Rate My Creator through <a href="https://myaccount.google.com/connections" target="_blank" rel="noreferrer">Google’s third-party connections page</a>.</p><p>To request access, correction, export, or deletion of your information and connected YouTube data, email <a href="mailto:noahlarsen018@gmail.com">noahlarsen018@gmail.com</a>.</p></>],
+  ['Google API Services User Data Policy', <p>Rate My Creator’s use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements. Google user data is used only to provide or improve the user-facing features described here.</p>],
+  ['Children’s privacy', <p>Rate My Creator is not directed to children under 13, and we do not knowingly collect personal information from children under 13.</p>],
+  ['Changes and contact', <p>We will post revisions here and update the effective date. Questions and privacy requests can be sent to <a href="mailto:noahlarsen018@gmail.com">noahlarsen018@gmail.com</a>.</p>]
+];
+
+const termsSections = [
+  ['Using the service', <p>You must provide accurate account information, keep your account secure, and use Rate My Creator only for lawful purposes.</p>],
+  ['Reviews and community content', <p>You retain ownership of content you submit and grant Rate My Creator permission to host and display it to operate the service. Content must not include harassment, threats, unlawful material, spam, or violations of another person’s rights.</p>],
+  ['Moderation', <p>We may remove content or restrict accounts that violate these terms, create security risks, or harm the community.</p>],
+  ['Third-party services', <p>Google, Supabase, Vercel, YouTube, and other linked services are governed by their own terms and privacy policies.</p>],
+  ['Service availability', <p>The service is provided “as is” and “as available.” We may change, suspend, or discontinue features.</p>],
+  ['Changes and contact', <p>Questions may be sent to <a href="mailto:noahlarsen018@gmail.com">noahlarsen018@gmail.com</a>.</p>]
+];
+
 const legalPages = {
-  privacy: {
-    label: 'PRIVACY', title: 'Privacy Policy',
-    intro: 'This policy explains what information Rate My Creator collects, why we use it, and the choices available to you.',
-    sections: [
-      ['Information we collect', <><p>When you create an account, we may collect your email address, first and last name, username, birthdate, optional phone number, optional gender, and profile image. If you continue with Google, Google provides basic account information such as your name, email address, and profile image. We do not receive your Google password.</p><p>We also collect content you submit, including creator ratings, reviews, disclosures, and votes on reviews. Our service providers may process technical information needed to operate and secure the service, such as authentication records and browser or device information.</p></>],
-      ['How we use information', <p>We use this information to create and secure accounts, complete user profiles, display reviews and ratings, personalize account pages, prevent abuse, troubleshoot problems, and improve Rate My Creator.</p>],
-      ['How information is shared', <p>Your username, ratings, reviews, and related contributions may be visible to other users. We use Supabase for authentication and database services, Google for Google sign-in, and Vercel to host the application. These providers process information as needed to deliver their services. We do not sell your personal information.</p>],
-      ['Data retention and security', <p>We retain account information and contributions while your account is active or as reasonably necessary to operate the service, resolve disputes, and comply with legal obligations. We use reasonable safeguards, including authenticated access and database row-level security, but no online service can guarantee absolute security.</p>],
-      ['Your choices', <p>You may update available profile information from your account settings. You may disconnect Rate My Creator from your Google Account through your Google Account permissions. To request access, correction, or deletion of your account information, contact us at <a href="mailto:noahlarsen018@gmail.com">noahlarsen018@gmail.com</a>.</p>],
-      ['Children’s privacy', <p>Rate My Creator is not directed to children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child has provided personal information, please contact us so we can review and remove it where appropriate.</p>],
-      ['Changes to this policy', <p>We may update this policy as the service changes. We will post the revised policy here and update the effective date.</p>]
-    ]
-  },
-  terms: {
-    label: 'TERMS', title: 'Terms of Service',
-    intro: 'These terms govern your use of Rate My Creator. By creating an account or using the service, you agree to these terms.',
-    sections: [
-      ['Using the service', <p>You must provide accurate account information, keep your account secure, and use Rate My Creator only for lawful purposes. You are responsible for activity performed through your account.</p>],
-      ['Reviews and community content', <p>You retain ownership of content you submit. By submitting it, you grant Rate My Creator a non-exclusive, worldwide, royalty-free license to host, display, reproduce, and distribute that content as needed to operate and improve the service. Reviews must reflect honest opinions and must not include harassment, threats, impersonation, unlawful material, spam, or content that violates another person’s rights.</p>],
-      ['Moderation', <p>We may review, remove, or restrict content or accounts that violate these terms, create security risks, or harm the community. We are not required to publish or retain every submission.</p>],
-      ['Third-party services', <p>Rate My Creator uses services provided by Google, Supabase, and Vercel and may link to YouTube or other third-party websites. Their own terms and privacy policies govern your use of those services, and we are not responsible for third-party content or availability.</p>],
-      ['Service availability', <p>The service is provided “as is” and “as available.” We may change, suspend, or discontinue features. To the extent permitted by law, we disclaim implied warranties and are not liable for indirect, incidental, special, or consequential damages arising from use of the service.</p>],
-      ['Ending your use', <p>You may stop using the service at any time. We may suspend or terminate access when these terms are violated or when necessary to protect the service and its users.</p>],
-      ['Changes and contact', <p>We may update these terms and will post the revised version here with a new effective date. Questions may be sent to <a href="mailto:noahlarsen018@gmail.com">noahlarsen018@gmail.com</a>.</p>]
-    ]
-  }
+  privacy: { label: 'PRIVACY', title: 'Privacy Policy', intro: 'This policy applies specifically to Rate My Creator and explains how the application accesses, collects, uses, stores, protects, shares, retains, and deletes personal information and Google user data.', sections: privacySections },
+  terms: { label: 'TERMS', title: 'Terms of Service', intro: 'These terms govern your use of Rate My Creator. By creating an account or using the service, you agree to these terms.', sections: termsSections }
 };
 
 export function LegalPage({ type, navigate }) {
   const content = legalPages[type];
-  return <main className="page legal-page"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><header className="legal-heading"><span className="kicker">{content.label}</span><h1>{content.title}</h1><p>{content.intro}</p><small>Effective November 4, 2026</small></header><div className="legal-content">{content.sections.map(([title, body]) => <section key={title}><h2>{title}</h2>{body}</section>)}</div></main>;
+  return <main className="page legal-page"><button className="back" onClick={() => navigate('home')}><ArrowLeft size={17}/> Back home</button><header className="legal-heading"><span className="kicker">RATE MY CREATOR · {content.label}</span><h1>{content.title}</h1><p>{content.intro}</p><small>Effective November 5, 2026</small></header><div className="legal-content">{content.sections.map(([title, body]) => <section key={title}><h2>{title}</h2>{body}</section>)}</div></main>;
 }

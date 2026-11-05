@@ -126,8 +126,8 @@ function App() {
   }, [authReady, page, selected, session]);
 
   useEffect(() => {
-    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || page === 'complete-profile') return;
-    const destination = protectedPages.has(page) ? { page, id: selected } : { page: 'dashboard', id: null };
+    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || page === 'complete-profile' || !protectedPages.has(page)) return;
+    const destination = { page, id: selected };
     window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
     setPage('complete-profile');
     window.scrollTo(0, 0);
@@ -269,7 +269,7 @@ function App() {
   };
   const creator=creators.find(c=>c.id===selected)||creators[0];
   const shell=!['signup','login','complete-profile'].includes(page);
-  if (!authReady || (session?.user && !profileReady)) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
+  if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
   return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>} {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>} {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user} profile={profile}/>} {page==='settings'&&session?.user&&<AccountSettings navigate={navigate} user={session.user} profile={profile} onProfileChanged={handleProfileChanged}/>} {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
