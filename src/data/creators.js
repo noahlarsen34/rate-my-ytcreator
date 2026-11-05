@@ -10,4 +10,4 @@ export const creators = [
 ];
 
 export const categories = ['All', ...new Set(creators.map(c => c.category))];
-export const protectedPages = new Set(['dashboard', 'settings', 'rate']);
+export const protectedPages = new Set(['dashboard', 'settings', 'rate', 'complete-profile']);

@@ -4,9 +4,9 @@ import { creators } from '../data/creators';
 import { supabase } from '../lib/supabase';
 import { Avatar, Stars } from '../components/shared';
 
-export function Dashboard({ navigate, reviews, user }) {
+export function Dashboard({ navigate, reviews, user, profile }) {
   const following = creators.slice(0,3);
-  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  const displayName = profile?.first_name || profile?.username || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
   const [helpfulVotes, setHelpfulVotes] = useState(null);
   useEffect(() => {
     let active = true;

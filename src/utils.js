@@ -34,3 +34,27 @@ export function generatedUsernameFor(user) {
   const suffix = user.id.replace(/-/g, '').slice(-8).toLowerCase();
   return `${base}-${suffix}`;
 }
+
+
+export function isProfileComplete(profile) {
+  return Boolean(profile?.first_name?.trim() && profile?.last_name?.trim() && profile?.birthdate && profile?.username?.trim());
+}
+
+export function profileDefaults(user, profile = {}) {
+  const metadata = user?.user_metadata || {};
+  const metadataName = metadata.full_name || metadata.name || '';
+  return {
+    firstName: profile.first_name ?? metadata.given_name ?? metadataName.split(/\s+/)[0] ?? '',
+    lastName: profile.last_name ?? metadata.family_name ?? metadataName.split(/\s+/).slice(1).join(' '),
+    birthdate: profile.birthdate ?? metadata.birthdate ?? metadata.birthday ?? '',
+    username: profile.username ?? metadata.username ?? generatedUsernameFor(user),
+    phoneNumber: profile.phone_number ?? '',
+    gender: ['M', 'F', 'other'].includes(profile.gender) ? profile.gender : '',
+  };
+}
+
+export function pageFromPathname() {
+  if (window.location.pathname === '/privacy') return 'privacy';
+  if (window.location.pathname === '/terms') return 'terms';
+  return 'home';
+}
