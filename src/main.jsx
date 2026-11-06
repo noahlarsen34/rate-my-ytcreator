@@ -1,10 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import {
-  Search, UserRound, ChevronRight, Star, ExternalLink, SlidersHorizontal,
-  Settings, Bookmark, ThumbsUp, ThumbsDown, MessageSquareText, ArrowLeft, Play,
-  ShieldCheck, Sparkles, Flag, X, Check, Eye, EyeOff, LogOut, Menu, CircleHelp
-} from 'lucide-react';
+import { Play } from 'lucide-react';
 import './styles.css';
 import './reviews.css';
 import './auth.css';
@@ -347,16 +343,49 @@ function Rate({ navigate, selectedId, submitReview }) {
 }
 
 function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
+import { creators, protectedPages } from './data/creators';
+import { creatorIdFromChannelLink, formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname } from './utils';
+import { Header } from './components/shared';
+import { Home } from './pages/Home';
+import { DiscoverCreators } from './pages/DiscoverCreators';
+import { Profile as CreatorProfile } from './pages/CreatorProfile';
+import { AccountSignIn } from './pages/AccountSignIn';
+import { CompleteProfile } from './pages/CompleteProfile';
+import { Dashboard } from './pages/Dashboard';
+import { AccountSettings } from './pages/AccountSettings';
+import { RateCreator } from './pages/RateCreator';
+import { LegalPage } from './pages/LegalPage';
 
 function App() {
-  const [page,setPage]=useState('home'), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
+  const usernameUpdatesInFlight = useRef(new Set());
+  const profileRequest = useRef(0);
+  const authUserId = useRef(null);
+
+  useEffect(() => {
+    const handlePopState = () => { setPage(pageFromPathname()); setSelected(null); window.scrollTo(0, 0); };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
+    const ensureUsername = authUser => {
+      if (!authUser?.id || authUser.user_metadata?.username || usernameUpdatesInFlight.current.has(authUser.id)) return;
+      usernameUpdatesInFlight.current.add(authUser.id);
+      const username = generatedUsernameFor(authUser);
+      window.setTimeout(() => {
+        void supabase.auth.updateUser({ data: { username } }).then(({ data, error }) => {
+          if (!error && data.user) setSession(current => current ? { ...current, user: data.user } : current);
+        }).catch(() => {}).finally(() => usernameUpdatesInFlight.current.delete(authUser.id));
+      }, 0);
+    };
     const finishSignIn = nextSession => {
-      if (!nextSession || signInNavigationHandled.current) return;
+      if (!nextSession) return;
+      ensureUsername(nextSession.user);
+      if (signInNavigationHandled.current) return;
       const params = new URLSearchParams(window.location.search);
       let destination = pendingDestination.current;
       try {
@@ -376,11 +405,17 @@ function App() {
       }
     };
     supabase.auth.getSession().then(({ data }) => {
+      authUserId.current = data.session?.user?.id || null;
+      setProfileReady(!data.session?.user);
       setSession(data.session);
       setAuthReady(true);
+      ensureUsername(data.session?.user);
       if (data.session && new URLSearchParams(window.location.search).get('auth') === 'callback') finishSignIn(data.session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      const nextUserId = nextSession?.user?.id || null;
+      if (authUserId.current !== nextUserId) setProfileReady(!nextUserId);
+      authUserId.current = nextUserId;
       setSession(nextSession);
       setAuthReady(true);
       if (event === 'SIGNED_IN') finishSignIn(nextSession);
@@ -388,6 +423,35 @@ function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const userId = session?.user?.id;
+    const requestId = ++profileRequest.current;
+    if (!userId) {
+      setProfile(null);
+      setProfileError('');
+      setProfileReady(true);
+      return;
+    }
+    if (!isSupabaseConfigured) return;
+    setProfileReady(false);
+    setProfileError('');
+    let active = true;
+    supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').eq('user_id', userId).maybeSingle().then(({ data, error }) => {
+      if (!active || requestId !== profileRequest.current) return;
+      setProfile(error ? null : data);
+      setProfileError(error ? error.message || 'Your profile could not be loaded.' : '');
+      setProfileReady(true);
+    });
+    return () => { active = false; };
+  }, [session?.user?.id]);
+
+  const handleProfileChanged = nextProfile => {
+    profileRequest.current += 1;
+    setProfile(nextProfile);
+    setProfileError('');
+    setProfileReady(true);
+  };
 
   useEffect(() => {
     if (!authReady || session?.user || !protectedPages.has(page)) return;
@@ -398,6 +462,34 @@ function App() {
     setRequiresAuth(true);
     setPage('login');
   }, [authReady, page, selected, session]);
+
+  useEffect(() => {
+    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || page === 'complete-profile' || !protectedPages.has(page)) return;
+    const destination = { page, id: selected };
+    window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
+    setPage('complete-profile');
+    window.scrollTo(0, 0);
+  }, [authReady, page, profile, profileReady, selected, session?.user]);
+
+  const finishProfile = nextProfile => {
+    handleProfileChanged(nextProfile);
+    let destination = { page: 'dashboard', id: null };
+    try {
+      destination = JSON.parse(window.sessionStorage.getItem('profileReturnTo')) || destination;
+    } catch {
+      // Use the dashboard fallback when stored navigation is invalid.
+    }
+    window.sessionStorage.removeItem('profileReturnTo');
+    setSelected(destination.id || null);
+    setPage(destination.page);
+    window.scrollTo(0, 0);
+  };
+
+  const logoutFromOnboarding = async () => {
+    window.sessionStorage.removeItem('profileReturnTo');
+    if (supabase) await supabase.auth.signOut();
+    setPage('home');
+  };
 
   useEffect(() => {
     async function loadDatabaseReviews() {
@@ -464,11 +556,15 @@ function App() {
       throw new Error('Review submissions require Supabase. Add the project variables to .env.local and restart the dev server.');
     }
 
+    if (!session?.user?.id) {
+      throw new Error('Please log in with a valid account before submitting a review.');
+    }
+
     const databaseCreatorId = databaseCreatorIds[review.creatorId];
     if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
 
     const { data, error } = await supabase.from('reviews').insert({
-      user_id:null,
+      user_id:session.user.id,
       creator_id:databaseCreatorId,
       overall_rating:review.overallRating,
       profanity:review.profanity,
@@ -493,6 +589,9 @@ function App() {
       window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
       setRequiresAuth(true);
       setPage('login');
+    } else if (protectedPages.has(next) && next !== 'complete-profile' && profileReady && !isProfileComplete(profile)) {
+      window.sessionStorage.setItem('profileReturnTo', JSON.stringify({ page: next, id }));
+      setPage('complete-profile');
     } else {
       if (!['login','signup'].includes(next)) {
         pendingDestination.current = null;
@@ -502,13 +601,14 @@ function App() {
       setSelected(id);
       setPage(next);
     }
+    const nextPath = next === 'privacy' ? '/privacy' : next === 'terms' ? '/terms' : '/';
+    if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
     window.scrollTo(0,0);
   };
   const creator=creators.find(c=>c.id===selected)||creators[0];
-  const shell=!['signup','login'].includes(page);
-  if (!authReady) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Restoring your session…</p></main>;
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<Creators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<Profile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {(page==='signup'||page==='login')&&<Auth type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user}/>} {page==='settings'&&session?.user&&<SettingsPage navigate={navigate} user={session.user}/>} {page==='rate'&&session?.user&&<Rate navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  const shell=!['signup','login','complete-profile'].includes(page);
+  if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>} {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>} {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user} profile={profile}/>} {page==='settings'&&session?.user&&<AccountSettings navigate={navigate} user={session.user} profile={profile} onProfileChanged={handleProfileChanged}/>} {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);
-
