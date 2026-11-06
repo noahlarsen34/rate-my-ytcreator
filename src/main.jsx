@@ -70,17 +70,45 @@ function SearchBox({ value, setValue, onSubmit, compact = false }) {
 }
 
 function Header({ navigate, query, setQuery, user }) {
-  const [open, setOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef(null);
   const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const closeOutside = event => { if (!accountMenuRef.current?.contains(event.target)) setAccountMenuOpen(false); };
+    const closeOnEscape = event => { if (event.key === 'Escape') setAccountMenuOpen(false); };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape); };
+  }, [accountMenuOpen]);
+  const logout = async () => {
+    if (supabase) await supabase.auth.signOut();
+    setAccountMenuOpen(false);
+    setMobileNavOpen(false);
+    navigate('home');
+  };
+  const goTo = page => {
+    setAccountMenuOpen(false);
+    setMobileNavOpen(false);
+    navigate(page);
+  };
   return (
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
       <div className="nav-search"><SearchBox compact value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
-      <nav className={open ? 'open' : ''}>
-        <button onClick={() => navigate('creators')}>Discover</button>
-        {user ? <button className="account-chip" onClick={() => navigate('dashboard')}><UserRound size={18} /> {displayName}</button> : <><button onClick={() => navigate('login')}>Log in</button><button className="primary small" onClick={() => navigate('signup')}>Sign up</button></>}
+      <nav className={mobileNavOpen ? 'open' : ''}>
+        <button onClick={() => goTo('creators')}>Discover</button>
+        {user ? <div className="account-menu" ref={accountMenuRef}>
+          <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}><UserRound size={18} /> {displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
+          {accountMenuOpen && <div className="account-dropdown" role="menu">
+            <button role="menuitem" onClick={() => goTo('dashboard')}>Dashboard</button>
+            <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
+            <button className="dropdown-logout" role="menuitem" onClick={logout}><LogOut size={17}/> Log out</button>
+          </div>}
+        </div> : <><button onClick={() => navigate('login')}>Log in</button><button className="primary small" onClick={() => navigate('signup')}>Sign up</button></>}
       </nav>
-      <button className="menu" onClick={() => setOpen(!open)}><Menu /></button>
+      <button className="menu" aria-expanded={mobileNavOpen} aria-label="Toggle navigation menu" onClick={() => setMobileNavOpen(!mobileNavOpen)}><Menu /></button>
     </header>
   );
 }
