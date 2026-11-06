@@ -231,7 +231,20 @@ function Auth({ type, navigate, requiresAuth = false }) {
 
 function Dashboard({ navigate, reviews, user }) {
   const following = creators.slice(0,3);
-  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  const metadata = user?.user_metadata || {};
+  const fallbackName = metadata.given_name || metadata.full_name?.trim().split(/\s+/)[0] || metadata.name?.trim().split(/\s+/)[0] || user?.email?.split('@')[0] || 'there';
+  const [firstName, setFirstName] = useState(fallbackName);
+  useEffect(() => {
+    let active = true;
+    async function loadFirstName() {
+      if (!isSupabaseConfigured) return;
+      const { data, error } = await supabase.from('users').select('first_name').eq('user_id', user.id).maybeSingle();
+      if (active && !error && data?.first_name?.trim()) setFirstName(data.first_name.trim());
+    }
+    loadFirstName();
+    return () => { active = false; };
+  }, [user.id]);
+  const displayName = firstName;
   const [helpfulVotes, setHelpfulVotes] = useState(null);
   useEffect(() => {
     let active = true;
@@ -247,7 +260,7 @@ function Dashboard({ navigate, reviews, user }) {
     loadHelpfulVotes();
     return () => { active = false; };
   }, [user?.id]);
-  return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}.</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>{helpfulVotes === null ? '—' : helpfulVotes}</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
+  return <main className="page dashboard"><div className="dash-head"><div><span className="kicker">YOUR DASHBOARD</span><h1>Good to see you, {displayName}</h1><p>Here’s everything you’ve contributed and saved.</p></div><button className="icon-button" title="Settings" onClick={() => navigate('settings')}><Settings/></button></div><div className="dash-stats"><div><MessageSquareText/><strong>{reviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>3</strong><span>Creators followed</span></div><div><ThumbsUp/><strong>{helpfulVotes === null ? '—' : helpfulVotes}</strong><span>Helpful votes</span></div></div><div className="dashboard-grid"><section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviews.map((r,i)=><div className="review-row" key={i}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><ChevronRight/></div>)}</section><aside className="panel"><div className="panel-head"><h2>Following</h2><span>{following.length}</span></div>{following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</aside></div></main>;
 }
 
 function SettingsPage({ navigate, user }) {
