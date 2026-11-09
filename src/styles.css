@@ -33,3 +33,7 @@
 .google-data-summary{padding-top:60px;padding-bottom:60px}.google-data-summary h2{margin-bottom:18px}.google-data-summary>p{max-width:850px;color:#b0b0b8;line-height:1.75}.google-data-summary .text-button{margin-top:10px}
 @media(max-width:800px){.legal-heading h1{font-size:38px}footer .footer-link{display:block}}
 
+.review-row h3{vertical-align:middle}
+.review-row .stars{margin-top:0;vertical-align:middle}
+
+.empty-reviews{padding:24px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center}.empty-reviews p{margin:0;color:#a1a1a8;font-size:14px}
