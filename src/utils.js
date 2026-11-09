@@ -10,7 +10,7 @@ export function formatReview(review, creatorId) {
 
   return {
     id: review.review_id,
-    userId: review.user_id,
+    userId: review.user_id ?? null,
     creatorId,
     createdAt: review.created_at,
     creator: creator?.name ?? 'Unknown creator',
