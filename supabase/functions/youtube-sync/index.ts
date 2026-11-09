@@ -6,7 +6,7 @@ const requiredEnv = (name: string) => { const value = Deno.env.get(name); if (!v
 const toBytes = (value: string) => Uint8Array.from(atob(value), character => character.charCodeAt(0));
 const toBase64 = (value: Uint8Array) => { let binary = ''; value.forEach(byte => { binary += String.fromCharCode(byte); }); return btoa(binary); };
 
-async function getEncryptionKey() {
+function getEncryptionKey() {
   const keyBytes = toBytes(requiredEnv('YOUTUBE_TOKEN_ENCRYPTION_KEY'));
   if (keyBytes.byteLength !== 32) throw new Error('YOUTUBE_TOKEN_ENCRYPTION_KEY must be a base64-encoded 32-byte key.');
   return crypto.subtle.importKey('raw', keyBytes, 'AES-GCM', false, ['encrypt', 'decrypt']);
@@ -28,7 +28,18 @@ async function refreshAccessToken(refreshToken: string) {
   if (!response.ok || !result.access_token) throw new Error(result.error === 'invalid_grant' ? 'Your YouTube permission expired or was revoked. Please reconnect YouTube.' : 'Google could not refresh the YouTube connection.');
   return String(result.access_token);
 }
-async function fetchSubscriptions(accessToken: string) {
+type YouTubeChannel = {
+  channelId: string;
+  title: string;
+  handle: string | null;
+  description: string;
+  thumbnailUrl: string | null;
+  subscriberCount: number | null;
+  videoCount: number | null;
+  viewCount: number | null;
+};
+
+async function fetchSubscriptionIds(accessToken: string) {
   const subscriptions = new Set<string>();
   let pageToken = '', pageCount = 0;
   do {
@@ -43,6 +54,54 @@ async function fetchSubscriptions(accessToken: string) {
     if (pageCount >= 100) throw new Error('The YouTube account has too many subscription pages to sync safely in one request.');
   } while (pageToken);
   return [...subscriptions];
+}
+
+async function fetchChannelDetails(channelIds: string[], accessToken: string) {
+  const channels: YouTubeChannel[] = [];
+  for (let index = 0; index < channelIds.length; index += 50) {
+    const url = new URL('https://www.googleapis.com/youtube/v3/channels');
+    url.searchParams.set('part', 'snippet,statistics');
+    url.searchParams.set('id', channelIds.slice(index, index + 50).join(','));
+    url.searchParams.set('maxResults', '50');
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result?.error?.message || 'YouTube channel details could not be loaded.');
+    for (const item of result.items || []) {
+      const count = (value: unknown) => typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : null;
+      channels.push({
+        channelId: item.id,
+        title: item.snippet?.title || 'YouTube creator',
+        handle: item.snippet?.customUrl || null,
+        description: item.snippet?.description || '',
+        thumbnailUrl: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || null,
+        subscriberCount: item.statistics?.hiddenSubscriberCount ? null : count(item.statistics?.subscriberCount),
+        videoCount: count(item.statistics?.videoCount),
+        viewCount: count(item.statistics?.viewCount),
+      });
+    }
+  }
+  return channels.sort((first, second) => first.title.localeCompare(second.title));
+}
+
+// The project does not generate database types yet, so helpers accept the
+// runtime Supabase client without a generated schema generic.
+// deno-lint-ignore no-explicit-any
+async function storedAccessToken(admin: any, userId: string) {
+  const { data: connection, error } = await admin.from('youtube_connections').select('encrypted_refresh_token').eq('user_id', userId).maybeSingle();
+  if (error) throw error;
+  if (!connection) throw new Error('YouTube is not connected. Connect it before continuing.');
+  return refreshAccessToken(await decryptToken((connection as { encrypted_refresh_token: string }).encrypted_refresh_token));
+}
+
+// deno-lint-ignore no-explicit-any
+async function creatorRowsForChannels(admin: any, channelIds: string[]) {
+  const creators: Array<{ creator_id: string; youtube_channel_id: string }> = [];
+  for (let index = 0; index < channelIds.length; index += 100) {
+    const { data, error } = await admin.from('content_creators').select('creator_id, youtube_channel_id').in('youtube_channel_id', channelIds.slice(index, index + 100));
+    if (error) throw error;
+    creators.push(...(data || []));
+  }
+  return creators;
 }
 
 Deno.serve(async request => {
@@ -72,6 +131,73 @@ Deno.serve(async request => {
       const { error: connectionError } = await admin.from('youtube_connections').delete().eq('user_id', userId); if (connectionError) throw connectionError;
       return json({ connected: false, lastSyncedAt: null, followedCreators: 0 });
     }
+
+    if (body.action === 'list_unmatched') {
+      const accessToken = await storedAccessToken(admin, userId);
+      const subscriptionIds = await fetchSubscriptionIds(accessToken);
+      const existingCreators = await creatorRowsForChannels(admin, subscriptionIds);
+      const existingIds = new Set(existingCreators.map(creator => creator.youtube_channel_id));
+      const unmatchedIds = subscriptionIds.filter(channelId => !existingIds.has(channelId));
+      const channels = await fetchChannelDetails(unmatchedIds, accessToken);
+      return json({ channels, totalSubscriptions: subscriptionIds.length, unmatchedCreators: channels.length });
+    }
+
+    if (body.action === 'import') {
+      const requestedIds = [...new Set(Array.isArray(body.channelIds) ? body.channelIds.filter((value: unknown) => typeof value === 'string' && /^UC[\w-]{20,}$/.test(value)) : [])] as string[];
+      if (!requestedIds.length) return json({ error: 'Select at least one creator to import.' }, 400);
+      if (requestedIds.length > 500) return json({ error: 'You can import up to 500 creators at a time.' }, 400);
+
+      const accessToken = await storedAccessToken(admin, userId);
+      const subscriptionIds = new Set(await fetchSubscriptionIds(accessToken));
+      const authorizedIds = requestedIds.filter(channelId => subscriptionIds.has(channelId));
+      if (authorizedIds.length !== requestedIds.length) return json({ error: 'One or more selected channels are not in your YouTube subscriptions.' }, 400);
+
+      const existingCreators = await creatorRowsForChannels(admin, authorizedIds);
+      const existingIds = new Set(existingCreators.map(creator => creator.youtube_channel_id));
+      const newIds = authorizedIds.filter(channelId => !existingIds.has(channelId));
+      const channels = await fetchChannelDetails(newIds, accessToken);
+      if (channels.length) {
+        const { data: sampleCreator, error: sampleError } = await admin.from('content_creators').select('*').limit(1).maybeSingle();
+        if (sampleError) throw sampleError;
+        const availableColumns = new Set(Object.keys(sampleCreator || { first_name: true, last_name: true, creator_description: true, channel_link: true, type_id: true, youtube_channel_id: true }));
+        const { data: channelTypes, error: typeError } = await admin.from('channel_types').select('type_id, type_name').order('type_id').limit(100);
+        if (typeError) throw typeError;
+        const fallbackType = (channelTypes || []).find(type => /other|general/i.test(type.type_name || '')) || channelTypes?.[0];
+        if (!fallbackType) throw new Error('Create at least one channel type before importing YouTube creators.');
+        const syncedAt = new Date().toISOString();
+        const rows = channels.map(channel => {
+          const candidates: Record<string, unknown> = {
+            first_name: channel.title,
+            last_name: null,
+            creator_description: channel.description || null,
+            channel_link: `https://www.youtube.com/channel/${channel.channelId}`,
+            type_id: fallbackType.type_id,
+            youtube_channel_id: channel.channelId,
+            youtube_handle: channel.handle,
+            thumbnail_url: channel.thumbnailUrl,
+            profile_pic_url: channel.thumbnailUrl,
+            avatar_url: channel.thumbnailUrl,
+            subscriber_count: channel.subscriberCount,
+            video_count: channel.videoCount,
+            view_count: channel.viewCount,
+            youtube_synced_at: syncedAt,
+            updated_at: syncedAt,
+          };
+          return Object.fromEntries(Object.entries(candidates).filter(([column]) => availableColumns.has(column)));
+        });
+        const { error: insertError } = await admin.from('content_creators').upsert(rows, { onConflict: 'youtube_channel_id', ignoreDuplicates: true });
+        if (insertError) throw insertError;
+      }
+
+      const creators = await creatorRowsForChannels(admin, authorizedIds);
+      if (creators.length) {
+        const follows = creators.map(creator => ({ user_id: userId, creator_id: creator.creator_id, source: 'youtube' }));
+        const { error: followError } = await admin.from('creator_follows').upsert(follows, { onConflict: 'user_id,creator_id,source', ignoreDuplicates: true });
+        if (followError) throw followError;
+      }
+      return json({ importedCreators: channels.length, followedCreators: creators.length, skippedCreators: authorizedIds.length - channels.length });
+    }
+
     if (body.action !== 'sync') return json({ error: 'Unknown action.' }, 400);
 
     let accessToken = typeof body.providerToken === 'string' ? body.providerToken : '';
@@ -86,17 +212,11 @@ Deno.serve(async request => {
       if (!savedConnection) return json({ error: 'Google did not provide a long-lived YouTube token. Please reconnect and approve access again.' }, 409);
     }
     if (!accessToken) {
-      const { data: connection, error } = await admin.from('youtube_connections').select('encrypted_refresh_token').eq('user_id', userId).maybeSingle();
-      if (error) throw error; if (!connection) return json({ error: 'YouTube is not connected. Connect it before syncing.' }, 409);
-      accessToken = await refreshAccessToken(await decryptToken(connection.encrypted_refresh_token));
+      accessToken = await storedAccessToken(admin, userId);
     }
 
-    const channelIds = await fetchSubscriptions(accessToken);
-    const matchedCreators: Array<{ creator_id: string; youtube_channel_id: string }> = [];
-    for (let index = 0; index < channelIds.length; index += 100) {
-      const { data, error } = await admin.from('content_creators').select('creator_id, youtube_channel_id').in('youtube_channel_id', channelIds.slice(index, index + 100));
-      if (error) throw error; matchedCreators.push(...(data || []));
-    }
+    const channelIds = await fetchSubscriptionIds(accessToken);
+    const matchedCreators = await creatorRowsForChannels(admin, channelIds);
     if (matchedCreators.length) {
       const follows = matchedCreators.map(creator => ({ user_id: userId, creator_id: creator.creator_id, source: 'youtube' }));
       const { error } = await admin.from('creator_follows').upsert(follows, { onConflict: 'user_id,creator_id,source', ignoreDuplicates: true }); if (error) throw error;
