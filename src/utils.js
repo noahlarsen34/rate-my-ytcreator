@@ -12,6 +12,7 @@ export function formatReview(review, creatorId) {
     id: review.review_id,
     userId: review.user_id,
     creatorId,
+    createdAt: review.created_at,
     creator: creator?.name ?? 'Unknown creator',
     score: review.overall_rating,
     profanity: review.profanity,
