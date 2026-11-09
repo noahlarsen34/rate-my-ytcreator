@@ -3,7 +3,7 @@ import { ArrowLeft, Check, Download, Link2, LogOut, RefreshCw, Search, Unlink, X
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { profileDefaults } from '../utils';
 
-export function AccountSettings({ navigate, user, session, profile, onProfileChanged }) {
+export function AccountSettings({ navigate, user, session, profile, onProfileChanged, onCreatorsChanged }) {
   const defaults = profileDefaults(user, profile);
   const [values, setValues] = useState({ firstName: defaults.firstName, lastName: defaults.lastName, birthday: defaults.birthdate, username: defaults.username, gender: defaults.gender, phoneNumber: defaults.phoneNumber });
   const [editing, setEditing] = useState(false), [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('');
@@ -105,6 +105,7 @@ export function AccountSettings({ navigate, user, session, profile, onProfileCha
     try {
       const data = await invokeYouTube({ action: 'import', channelIds: [...importer.selected] });
       const status = await invokeYouTube({ action: 'status' });
+      onCreatorsChanged?.();
       applyYouTubeStatus(status);
       setYoutube(current => ({ ...current, unmatchedCreators: Math.max(0, (current.unmatchedCreators ?? importer.channels.length) - data.importedCreators), message: `Imported ${data.importedCreators} creator${data.importedCreators === 1 ? '' : 's'} and followed ${data.followedCreators}.` }));
       setImporter({ open: false, loading: false, importing: false, channels: [], selected: new Set(), search: '', error: '' });

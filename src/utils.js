@@ -5,7 +5,7 @@ export function creatorIdFromChannelLink(channelLink) {
   return creators.find(creator => creator.handle.slice(1).toLowerCase() === handle)?.id;
 }
 
-export function formatReview(review, creatorId) {
+export function formatReview(review, creatorId, creatorName) {
   const creator = creators.find(item => item.id === creatorId);
 
   return {
@@ -13,7 +13,7 @@ export function formatReview(review, creatorId) {
     userId: review.user_id ?? null,
     creatorId,
     createdAt: review.created_at,
-    creator: creator?.name ?? 'Unknown creator',
+    creator: creatorName ?? creator?.name ?? 'Unknown creator',
     score: review.overall_rating,
     profanity: review.profanity,
     substance: review.substance_use,

@@ -4,8 +4,9 @@ import { Play } from 'lucide-react';
 import './styles.css';
 import './reviews.css';
 import './auth.css';
+import './follows.css';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { creators, protectedPages } from './data/creators';
+import { creators as demoCreators, protectedPages } from './data/creators';
 import { creatorIdFromChannelLink, formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname } from './utils';
 import { Header } from './components/shared';
 import { Home } from './pages/Home';
@@ -18,8 +19,37 @@ import { AccountSettings } from './pages/AccountSettings';
 import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
 
+const initialsFor = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'YT';
+const creatorFromDatabase = (row, typeNames) => {
+  const localId = creatorIdFromChannelLink(row.channel_link);
+  const demo = demoCreators.find(item => item.id === localId);
+  if (demo) return { ...demo, databaseId: row.creator_id, channelUrl: row.channel_link };
+  const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || 'YouTube creator';
+  return {
+    id: `db-${row.creator_id}`,
+    databaseId: row.creator_id,
+    name,
+    handle: row.youtube_handle || row.channel_link?.match(/@([^/?#]+)/)?.[0] || '@youtube',
+    initials: initialsFor(name),
+    color: '#d9383e',
+    thumbnailUrl: row.thumbnail_url || row.profile_pic_url || row.avatar_url || null,
+    channelUrl: row.channel_link,
+    score: 0,
+    reviews: 0,
+    category: typeNames.get(String(row.type_id)) || 'YouTube',
+    audience: 'Not rated yet',
+    topic: row.subscriber_count ? `${Number(row.subscriber_count).toLocaleString()} YouTube subscribers` : 'YouTube creator',
+    tagline: 'New to Rate My Creator',
+    description: row.creator_description || 'This creator was imported from YouTube. Community details and ratings will appear as people contribute.',
+    truth: 0,
+    profanity: 1,
+    substance: 1,
+    ai: 'Unknown'
+  };
+};
+
 function App() {
-  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(null), [selectedReviewId,setSelectedReviewId]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(null), [selectedReviewId,setSelectedReviewId]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState(demoCreators), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({});
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
@@ -163,9 +193,10 @@ function App() {
       }
 
       setReviewsLoading(true);
-      const [creatorsResult, reviewsResult] = await Promise.all([
-        supabase.from('content_creators').select('creator_id, channel_link'),
+      const [creatorsResult, reviewsResult, typesResult] = await Promise.all([
+        supabase.from('content_creators').select('*'),
         supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
+        ,supabase.from('channel_types').select('type_id, type_name')
       ]);
 
       if (creatorsResult.error || reviewsResult.error) {
@@ -174,15 +205,28 @@ function App() {
         return;
       }
 
-      const idMap = {};
-      creatorsResult.data.forEach(databaseCreator => {
-        const localId = creatorIdFromChannelLink(databaseCreator.channel_link);
-        if (localId) idMap[localId] = databaseCreator.creator_id;
-      });
+      const typeNames = new Map((typesResult.data || []).map(type => [String(type.type_id), type.type_name]));
+      const databaseCreators = creatorsResult.data.map(row => creatorFromDatabase(row, typeNames));
+      const creatorByDatabaseId = new Map(databaseCreators.map(creator => [String(creator.databaseId), creator]));
+      const databaseIds = new Set(databaseCreators.map(creator => creator.databaseId));
+      const combinedCreators = [...databaseCreators, ...demoCreators.filter(creator => !databaseIds.has(creator.databaseId) && !databaseCreators.some(item => item.id === creator.id))];
+      const idMap = Object.fromEntries(databaseCreators.map(creator => [creator.id, creator.databaseId]));
       const loadedReviews = reviewsResult.data.map(review => {
-        const localId = creatorIdFromChannelLink(review.content_creators?.channel_link);
-        return localId ? formatReview(review, localId) : null;
+        const matchedCreator = creatorByDatabaseId.get(String(review.creator_id));
+        return matchedCreator ? formatReview(review, matchedCreator.id, matchedCreator.name) : null;
       }).filter(Boolean);
+
+      const ratingTotals = new Map();
+      for (const review of loadedReviews) {
+        const current = ratingTotals.get(review.creatorId) || { total: 0, count: 0 };
+        current.total += review.score;
+        current.count += 1;
+        ratingTotals.set(review.creatorId, current);
+      }
+      setAppCreators(combinedCreators.map(creator => {
+        const rating = ratingTotals.get(creator.id);
+        return rating ? { ...creator, score: rating.total / rating.count, reviews: rating.count } : creator;
+      }));
 
       const reviewIds = loadedReviews.map(review => review.id);
       let voteCounts = new Map();
@@ -213,7 +257,39 @@ function App() {
     }
 
     loadDatabaseReviews();
-  }, [authReady, session?.user?.id]);
+  }, [authReady, session?.user?.id, creatorRefresh]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !supabase) {
+      setFollowingIds(new Set());
+      setFollowerCounts({});
+      return;
+    }
+    let active = true;
+    supabase.functions.invoke('youtube-sync', { body: { action: 'following' } }).then(({ data, error }) => {
+      if (!active) return;
+      if (error || data?.error) {
+        console.error('Creator follows could not be loaded:', data?.error || error?.message);
+        return;
+      }
+      setFollowingIds(new Set((data.creatorIds || []).map(String)));
+      setFollowerCounts(data.counts || {});
+    });
+    return () => { active = false; };
+  }, [session?.user?.id, creatorRefresh]);
+
+  const toggleFollow = async creator => {
+    if (!session?.user) { navigate('login'); return; }
+    if (!creator.databaseId) return;
+    const { data, error } = await supabase.functions.invoke('youtube-sync', { body: { action: 'toggle_follow', creatorId: creator.databaseId } });
+    if (error || data?.error) throw new Error(data?.error || error?.message || 'Your follow could not be updated.');
+    setFollowingIds(current => {
+      const next = new Set(current);
+      if (data.following) next.add(String(creator.databaseId)); else next.delete(String(creator.databaseId));
+      return next;
+    });
+    setFollowerCounts(current => ({ ...current, [String(creator.databaseId)]: Number(data.followerCount || 0) }));
+  };
 
   const submitReview = async review => {
     if (!isSupabaseConfigured) {
@@ -270,13 +346,26 @@ function App() {
     if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
     window.scrollTo(0,0);
   };
-  const creator=creators.find(c=>c.id===selected)||creators[0];
+  const creator=appCreators.find(c=>c.id===selected)||appCreators[0];
   const handleReviewVoteCountsChange = (reviewId, voteCounts) => {
     setReviews(current => current.map(review => review.id === reviewId ? { ...review, voteCounts } : review));
   };
   const shell=!['signup','login','complete-profile'].includes(page);
   if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange}/>} {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>} {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>} {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile}/>} {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged}/>} {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  return <>
+    {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>}
+    {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>}
+    {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery} creators={appCreators}/>}
+    {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>}
+    {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>}
+    {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>}
+    {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>}
+    {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>}
+    {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile} creators={appCreators} followingIds={followingIds}/>}
+    {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged} onCreatorsChanged={() => setCreatorRefresh(value => value + 1)}/>}
+    {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview} creators={appCreators}/>}
+    {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}
+  </>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);

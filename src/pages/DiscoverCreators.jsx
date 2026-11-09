@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { SlidersHorizontal, Search } from 'lucide-react';
-import { creators, categories } from '../data/creators';
 import { SearchBox, CreatorCard } from '../components/shared';
 
-export function DiscoverCreators({ navigate, query, setQuery }) {
+export function DiscoverCreators({ navigate, query, setQuery, creators }) {
   const [selected, setSelected] = useState(['All']);
+  const categories = useMemo(() => ['All', ...new Set(creators.map(c => c.category))], [creators]);
   const filtered = useMemo(() => creators.filter(c => (selected.includes('All') || selected.includes(c.category)) && (`${c.name} ${c.topic} ${c.category}`).toLowerCase().includes(query.toLowerCase())), [query, selected]);
   const toggle = cat => setSelected(cat === 'All' ? ['All'] : (selected.includes(cat) ? (selected.filter(x => x !== cat).length ? selected.filter(x => x !== cat) : ['All']) : [...selected.filter(x => x !== 'All'), cat]));
   return <main className="page"><div className="page-heading"><span className="kicker">DISCOVER</span><h1>Find your next favorite creator</h1><p>Explore honest community ratings across every kind of content.</p></div>

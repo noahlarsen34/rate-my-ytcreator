@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { creators } from '../data/creators';
 import { RangeField } from '../components/shared';
 
-export function RateCreator({ navigate, selectedId, submitReview }) {
+export function RateCreator({ navigate, selectedId, submitReview, creators }) {
   const [wordCount,setWordCount]=useState(0), [submitting,setSubmitting]=useState(false), [error,setError]=useState(''), [values,setValues]=useState({truth:'3',profanity:'1',substance:'1'});
   const submit=async e=>{
     e.preventDefault();

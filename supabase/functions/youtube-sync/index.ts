@@ -3,6 +3,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 const requiredEnv = (name: string) => { const value = Deno.env.get(name); if (!value) throw new Error(`The ${name} Edge Function secret is not configured.`); return value; };
+const errorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
+  if (typeof error === 'string') return error;
+  return 'The YouTube request failed.';
+};
 const toBytes = (value: string) => Uint8Array.from(atob(value), character => character.charCodeAt(0));
 const toBase64 = (value: Uint8Array) => { let binary = ''; value.forEach(byte => { binary += String.fromCharCode(byte); }); return btoa(binary); };
 
@@ -132,6 +138,39 @@ Deno.serve(async request => {
       return json({ connected: false, lastSyncedAt: null, followedCreators: 0 });
     }
 
+    if (body.action === 'following') {
+      const { data: allFollows, error } = await admin.from('creator_follows').select('user_id, creator_id');
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      const creatorIds: string[] = [];
+      for (const follow of allFollows || []) {
+        const creatorId = String(follow.creator_id);
+        counts[creatorId] = (counts[creatorId] || 0) + 1;
+        if (follow.user_id === userId) creatorIds.push(creatorId);
+      }
+      return json({ creatorIds: [...new Set(creatorIds)], counts });
+    }
+
+    if (body.action === 'toggle_follow') {
+      const creatorId = typeof body.creatorId === 'number' || typeof body.creatorId === 'string' ? String(body.creatorId) : '';
+      if (!/^\d+$/.test(creatorId)) return json({ error: 'A valid creator is required.' }, 400);
+      const { data: creator, error: creatorError } = await admin.from('content_creators').select('creator_id').eq('creator_id', creatorId).maybeSingle();
+      if (creatorError) throw creatorError;
+      if (!creator) return json({ error: 'That creator no longer exists.' }, 404);
+      const { count, error: existingError } = await admin.from('creator_follows').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('creator_id', creatorId);
+      if (existingError) throw existingError;
+      if (count) {
+        const { error: deleteError } = await admin.from('creator_follows').delete().eq('user_id', userId).eq('creator_id', creatorId);
+        if (deleteError) throw deleteError;
+      } else {
+        const { error: insertError } = await admin.from('creator_follows').insert({ user_id: userId, creator_id: creatorId, source: 'manual' });
+        if (insertError) throw insertError;
+      }
+      const { count: followerCount, error: countError } = await admin.from('creator_follows').select('*', { count: 'exact', head: true }).eq('creator_id', creatorId);
+      if (countError) throw countError;
+      return json({ following: !count, followerCount: followerCount || 0 });
+    }
+
     if (body.action === 'list_unmatched') {
       const accessToken = await storedAccessToken(admin, userId);
       const subscriptionIds = await fetchSubscriptionIds(accessToken);
@@ -185,15 +224,22 @@ Deno.serve(async request => {
           };
           return Object.fromEntries(Object.entries(candidates).filter(([column]) => availableColumns.has(column)));
         });
-        const { error: insertError } = await admin.from('content_creators').upsert(rows, { onConflict: 'youtube_channel_id', ignoreDuplicates: true });
-        if (insertError) throw insertError;
+        // These channel IDs were queried immediately above, so a plain insert
+        // avoids requiring youtube_channel_id to have a particular UNIQUE
+        // constraint in every deployed version of the project schema.
+        for (let index = 0; index < rows.length; index += 100) {
+          const { error: insertError } = await admin.from('content_creators').insert(rows.slice(index, index + 100));
+          if (insertError) throw insertError;
+        }
       }
 
       const creators = await creatorRowsForChannels(admin, authorizedIds);
       if (creators.length) {
         const follows = creators.map(creator => ({ user_id: userId, creator_id: creator.creator_id, source: 'youtube' }));
-        const { error: followError } = await admin.from('creator_follows').upsert(follows, { onConflict: 'user_id,creator_id,source', ignoreDuplicates: true });
-        if (followError) throw followError;
+        for (let index = 0; index < follows.length; index += 100) {
+          const { error: followError } = await admin.from('creator_follows').upsert(follows.slice(index, index + 100), { onConflict: 'user_id,creator_id,source', ignoreDuplicates: true });
+          if (followError) throw followError;
+        }
       }
       return json({ importedCreators: channels.length, followedCreators: creators.length, skippedCreators: authorizedIds.length - channels.length });
     }
@@ -225,7 +271,8 @@ Deno.serve(async request => {
     const { error: syncError } = await admin.from('youtube_connections').update({ last_synced_at: syncedAt, updated_at: syncedAt }).eq('user_id', userId); if (syncError) throw syncError;
     return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length });
   } catch (error) {
-    console.error('youtube-sync failed:', error instanceof Error ? error.message : 'Unknown error');
-    return json({ error: error instanceof Error ? error.message : 'The YouTube request failed.' }, 500);
+    const message = errorMessage(error);
+    console.error('youtube-sync failed:', message, error);
+    return json({ error: message }, 500);
   }
 });

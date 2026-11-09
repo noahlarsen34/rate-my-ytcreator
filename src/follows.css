@@ -1,0 +1,23 @@
+.avatar > img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-follow-count {
+  color: #8d8d96;
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.follow-button.following {
+  border-color: #4f7e66;
+  color: #8cddb0;
+}
+
+.dashboard-empty {
+  color: #85858e;
+  font-size: 13px;
+  line-height: 1.5;
+}

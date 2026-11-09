@@ -5,7 +5,7 @@ import {
 import { supabase } from '../lib/supabase';
 
 export function Avatar({ creator, size = 'md' }) {
-  return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}><span>{creator.initials}</span><Play size={size === 'lg' ? 28 : 15} fill="currentColor" /></div>;
+  return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}>{creator.thumbnailUrl ? <img src={creator.thumbnailUrl} alt="" referrerPolicy="no-referrer"/> : <span>{creator.initials}</span>}<Play size={size === 'lg' ? 28 : 15} fill="currentColor" /></div>;
 }
 
 export function Stars({ score, small = false }) {
