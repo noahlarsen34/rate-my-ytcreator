@@ -18,7 +18,7 @@
 .settings-panel-head{justify-content:space-between;align-items:center}.settings-panel-head .settings-section-title{padding:12px 0!important}
 @media(max-width:1200px){.setting-pair{grid-template-columns:1fr;row-gap:0}.setting-pair .setting-row:first-child input{width:100%}}
 @media(max-width:800px){.dashboard .dash-head{flex-direction:column;align-items:flex-start;gap:12px}.dashboard .dash-head .icon-button{order:-1;width:36px;height:36px;padding:8px;display:grid;place-items:center}.dashboard .dash-head .icon-button svg{width:18px;height:18px}}
-@media(max-width:800px){.dashboard .dash-head{display:block;position:relative}.dashboard .dash-head .icon-button{position:absolute;top:0;right:0;order:initial;width:30px;height:34px;padding:6px 6px 10px}.dashboard .dash-head .icon-button svg{width:16px;height:16px}}
+@media(max-width:800px){.dashboard .dash-head{display:block;position:relative}.dashboard .dash-head .icon-button{position:absolute;top:0;right:0;order:initial;width:30px;height:34px;padding:6px}.dashboard .dash-head .icon-button svg{width:16px;height:16px}}
 .settings-panel-head .secondary{padding:12px 17px;margin:8px;background:#d6d6da;color:#18181b;border-color:#c4c4c9}.personal-section-title{border-top:0!important}.settings-panel-head+.setting-row,.setting-pair{border-top:0}
 .setting-pair{grid-template-columns:1fr 1fr;column-gap:40px}.setting-pair .setting-row:first-child input{width:82%}
 @media(max-width:1200px){.setting-pair{grid-template-columns:1fr;row-gap:0}.setting-pair .setting-row:first-child input{width:100%}}
@@ -37,3 +37,5 @@
 .review-row .stars{margin-top:0;vertical-align:middle}
 
 .empty-reviews{padding:24px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center}.empty-reviews p{margin:0;color:#a1a1a8;font-size:14px}
+.dash-stats>div{align-items:center}.dash-stats svg{grid-row:1/3;align-self:center}.dash-stats strong{grid-row:1;align-self:center}.dash-stats span{grid-column:2;grid-row:2}
+.dashboard .dash-head .icon-button{display:grid;place-items:center}
