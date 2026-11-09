@@ -163,7 +163,7 @@ function App() {
       setReviewsLoading(true);
       const [creatorsResult, reviewsResult] = await Promise.all([
         supabase.from('content_creators').select('creator_id, channel_link'),
-        supabase.from('reviews').select('review_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
+        supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
       ]);
 
       if (creatorsResult.error || reviewsResult.error) {
@@ -235,7 +235,7 @@ function App() {
       review_text:review.reviewText,
       bias_text:review.biasText,
       uses_ai:review.usesAi
-    }).select('review_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
+    }).select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
 
     if (error) throw new Error(error.message);
     const insertedReview = formatReview(data, review.creatorId);
