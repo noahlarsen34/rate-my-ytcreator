@@ -4,10 +4,11 @@ import { creators } from '../data/creators';
 import { supabase } from '../lib/supabase';
 import { Avatar, Stars } from '../components/shared';
 
-export function Dashboard({ navigate, reviews, user, profile }) {
+export function Dashboard({ navigate, reviews, reviewsLoading, reviewsError, user, profile }) {
   const myReviews = reviews.filter(review => review.userId === user?.id);
   const following = creators.slice(0,3);
   const displayName = profile?.first_name || profile?.username || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
+  const ownReviews = reviews.filter(review => review.userId === user?.id);
   const [helpfulVotes, setHelpfulVotes] = useState(null);
   useEffect(() => {
     let active = true;

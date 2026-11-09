@@ -19,7 +19,7 @@ import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
 
 function App() {
-  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
+  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(null), [selectedReviewId,setSelectedReviewId]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState('');
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
@@ -27,7 +27,7 @@ function App() {
   const authUserId = useRef(null);
 
   useEffect(() => {
-    const handlePopState = () => { setPage(pageFromPathname()); setSelected(null); window.scrollTo(0, 0); };
+    const handlePopState = () => { setPage(pageFromPathname()); setSelected(null); setSelectedReviewId(null); window.scrollTo(0, 0); };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -49,7 +49,8 @@ function App() {
       ensureUsername(nextSession.user);
       if (signInNavigationHandled.current) return;
       const params = new URLSearchParams(window.location.search);
-      let destination = pendingDestination.current;
+      const isYouTubeCallback = params.get('auth') === 'youtube';
+      let destination = isYouTubeCallback ? { page: 'settings', id: null } : pendingDestination.current;
       try {
         destination ||= JSON.parse(window.sessionStorage.getItem('authReturnTo'));
       } catch {
@@ -72,7 +73,8 @@ function App() {
       setSession(data.session);
       setAuthReady(true);
       ensureUsername(data.session?.user);
-      if (data.session && new URLSearchParams(window.location.search).get('auth') === 'callback') finishSignIn(data.session);
+      const authCallback = new URLSearchParams(window.location.search).get('auth');
+      if (data.session && (authCallback === 'callback' || authCallback === 'youtube')) finishSignIn(data.session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       const nextUserId = nextSession?.user?.id || null;
@@ -243,7 +245,7 @@ function App() {
     return insertedReview;
   };
 
-  const navigate=(next,id=null)=>{
+  const navigate=(next,id=null,reviewId=null)=>{
     if (protectedPages.has(next) && !session?.user) {
       const destination = { page: next, id };
       signInNavigationHandled.current = false;
@@ -264,13 +266,17 @@ function App() {
       setPage(next);
     }
     const nextPath = next === 'privacy' ? '/privacy' : next === 'terms' ? '/terms' : '/';
+    setSelectedReviewId(reviewId);
     if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
     window.scrollTo(0,0);
   };
   const creator=creators.find(c=>c.id===selected)||creators[0];
+  const handleReviewVoteCountsChange = (reviewId, voteCounts) => {
+    setReviews(current => current.map(review => review.id === reviewId ? { ...review, voteCounts } : review));
+  };
   const shell=!['signup','login','complete-profile'].includes(page);
   if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
-  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user}/>} {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>} {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>} {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} user={session.user} profile={profile}/>} {page==='settings'&&session?.user&&<AccountSettings navigate={navigate} user={session.user} profile={profile} onProfileChanged={handleProfileChanged}/>} {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
+  return <>{shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username}/>} {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>} {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery}/>} {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange}/>} {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>} {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>} {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>} {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>} {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile}/>} {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged}/>} {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview}/>} {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}</>;
 }
 
 createRoot(document.getElementById('root')).render(<App/>);

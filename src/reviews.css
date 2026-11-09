@@ -61,3 +61,8 @@
 .vote-login-prompt{top:calc(100% + 8px);bottom:auto}.vote-login-prompt.up{right:34px}.vote-login-prompt:after{top:auto;bottom:100%;border:6px solid transparent;border-bottom-color:#414148;border-top-color:transparent}
 .vote-login-prompt button:hover,.vote-login-prompt button:focus-visible{background:#fff;color:#111}
 .vote-error{position:absolute;right:0;top:calc(100% + 8px);white-space:nowrap;color:#ff686d;font-size:12px;background:#241719;border:1px solid #563034;border-radius:7px;padding:7px 9px}
+
+.dashboard .review-row{width:100%;text-align:left;background:transparent;border:0;border-top:1px solid #29292e;color:inherit;cursor:pointer}
+.dashboard .review-row:hover{background:#1a1a1e}
+.dashboard .review-row:focus-visible{outline:2px solid #ff656a;outline-offset:2px;border-radius:6px}
+.dashboard-empty{margin:12px 0 0;padding:20px 0 2px;border-top:1px solid #29292e;color:#898992;font-size:14px}

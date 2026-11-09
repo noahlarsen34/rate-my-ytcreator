@@ -84,7 +84,7 @@ export function Metric({ label, value, note, inverse = false }) {
   return <div className="metric"><div className="metric-top"><span>{label}</span><b>{value.toFixed(1)}<small>/5</small></b></div><div className="bar"><i style={{width: `${pct}%`}} /></div><p>{note}</p></div>;
 }
 
-export function ReviewVotes({ review, user, navigate }) {
+export function ReviewVotes({ review, user, navigate, onVoteCountsChange }) {
   const [vote, setVote] = useState(review.myVote ?? null);
   const [counts, setCounts] = useState(review.voteCounts ?? { up: 0, down: 0 });
   const [loginPromptFor, setLoginPromptFor] = useState(null);
@@ -114,10 +114,12 @@ export function ReviewVotes({ review, user, navigate }) {
       : await supabase.from('review_votes').delete().eq('review_id', review.id).eq('user_id', userId);
     setSaving(false);
     if (result.error) { setVoteError('Your vote could not be saved. Please try again.'); return; }
-    setCounts(current => ({
-      up: current.up + (nextVote === 'up' ? (vote === 'up' ? 0 : 1) : vote === 'up' ? -1 : 0),
-      down: current.down + (nextVote === 'down' ? (vote === 'down' ? 0 : 1) : vote === 'down' ? -1 : 0)
-    }));
+    const nextCounts = {
+      up: counts.up + (nextVote === 'up' ? (vote === 'up' ? 0 : 1) : vote === 'up' ? -1 : 0),
+      down: counts.down + (nextVote === 'down' ? (vote === 'down' ? 0 : 1) : vote === 'down' ? -1 : 0)
+    };
+    setCounts(nextCounts);
+    onVoteCountsChange?.(review.id, nextCounts);
     setVote(nextVote);
   };
   return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" disabled={saving} className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" disabled={saving} className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}{voteError && <span className="vote-error" role="alert">{voteError}</span>}</div>;
