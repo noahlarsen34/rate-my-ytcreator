@@ -31,13 +31,23 @@ const cleanYouTubeDescription = value => {
   if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
-const lastViewedCreatorDestination = () => {
+const returnablePages = new Set(['home', 'creators', 'profile', 'privacy', 'terms', 'dashboard', 'settings', 'rate']);
+const savedPageDestination = () => {
   try {
-    const id = window.localStorage.getItem('lastViewedCreatorId');
-    return id ? { page: 'profile', id } : null;
+    const destination = JSON.parse(window.localStorage.getItem('lastPageDestination'));
+    return destination && returnablePages.has(destination.page)
+      ? { page: destination.page, id: destination.id || null, reviewId: destination.reviewId || null }
+      : null;
   } catch {
     return null;
   }
+};
+const rememberPageDestination = destination => {
+  if (!returnablePages.has(destination.page)) return;
+  try {
+    window.localStorage.setItem('lastPageDestination', JSON.stringify(destination));
+    window.localStorage.removeItem('lastViewedCreatorId');
+  } catch { /* Storage may be unavailable in private browsing. */ }
 };
 const creatorFromDatabase = (row, typeNames) => {
   const localId = creatorIdFromChannelLink(row.channel_link);
@@ -96,9 +106,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (page !== 'profile' || !selected) return;
-    try { window.localStorage.setItem('lastViewedCreatorId', selected); } catch { /* Storage may be unavailable in private browsing. */ }
-  }, [page, selected]);
+    if (new URLSearchParams(window.location.search).has('auth')) return;
+    rememberPageDestination({ page, id: selected || null, reviewId: selectedReviewId || null });
+  }, [page, selected, selectedReviewId]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -125,16 +135,17 @@ function App() {
       } catch {
         destination = null;
       }
-      destination ||= lastViewedCreatorDestination();
+      destination ||= savedPageDestination();
       destination ||= { page: 'dashboard', id: null };
       signInNavigationHandled.current = true;
       setSelected(destination.id || null);
+      setSelectedReviewId(destination.reviewId || null);
       setPage(destination.page);
       setRequiresAuth(false);
       pendingDestination.current = null;
       window.sessionStorage.removeItem('authReturnTo');
       if (authCallback === 'callback' || authCallback === 'youtube') {
-        window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: null }, document.title, window.location.pathname);
+        window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, window.location.pathname);
       }
     };
     supabase.auth.getSession().then(({ data }) => {
@@ -189,25 +200,25 @@ function App() {
 
   useEffect(() => {
     if (!authReady || session?.user || !protectedPages.has(page)) return;
-    const destination = { page, id: selected };
+    const destination = { page, id: selected, reviewId: selectedReviewId };
     signInNavigationHandled.current = false;
     pendingDestination.current = destination;
     window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
     setRequiresAuth(true);
     setPage('login');
-  }, [authReady, page, selected, session]);
+  }, [authReady, page, selected, selectedReviewId, session]);
 
   useEffect(() => {
     if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || ['complete-profile', 'login', 'signup'].includes(page)) return;
-    const destination = { page, id: selected };
+    const destination = { page, id: selected, reviewId: selectedReviewId };
     window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
     setPage('complete-profile');
     window.scrollTo(0, 0);
-  }, [authReady, page, profile, profileReady, selected, session?.user]);
+  }, [authReady, page, profile, profileReady, selected, selectedReviewId, session?.user]);
 
   const finishProfile = nextProfile => {
     handleProfileChanged(nextProfile);
-    let destination = lastViewedCreatorDestination() || { page: 'dashboard', id: null };
+    let destination = savedPageDestination() || { page: 'dashboard', id: null };
     try {
       destination = JSON.parse(window.sessionStorage.getItem('profileReturnTo')) || destination;
     } catch {
@@ -215,8 +226,9 @@ function App() {
     }
     window.sessionStorage.removeItem('profileReturnTo');
     setSelected(destination.id || null);
+    setSelectedReviewId(destination.reviewId || null);
     setPage(destination.page);
-    window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: null }, document.title, '/');
+    window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, '/');
     window.scrollTo(0, 0);
   };
 
@@ -383,13 +395,14 @@ function App() {
     let historyPage = next;
     let historyId = id;
     let historyReviewId = reviewId;
-    if (['login', 'signup'].includes(next) && page === 'profile' && selected) {
-      const destination = { page: 'profile', id: selected };
+    if (['login', 'signup'].includes(next) && returnablePages.has(page)) {
+      const destination = { page, id: selected || null, reviewId: selectedReviewId || null };
+      rememberPageDestination(destination);
       pendingDestination.current = destination;
       window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
     }
     if (protectedPages.has(next) && !session?.user) {
-      const destination = { page: next, id };
+      const destination = { page: next, id, reviewId };
       signInNavigationHandled.current = false;
       pendingDestination.current = destination;
       window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
@@ -399,7 +412,7 @@ function App() {
       historyId = null;
       historyReviewId = null;
     } else if (protectedPages.has(next) && next !== 'complete-profile' && profileReady && !isProfileComplete(profile)) {
-      window.sessionStorage.setItem('profileReturnTo', JSON.stringify({ page: next, id }));
+      window.sessionStorage.setItem('profileReturnTo', JSON.stringify({ page: next, id, reviewId }));
       setPage('complete-profile');
       historyPage = 'complete-profile';
       historyId = null;
