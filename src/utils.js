@@ -1,19 +1,10 @@
-import { creators } from './data/creators';
-
-export function creatorIdFromChannelLink(channelLink) {
-  const handle = channelLink?.match(/@([^/?#]+)/)?.[1]?.toLowerCase();
-  return creators.find(creator => creator.handle.slice(1).toLowerCase() === handle)?.id;
-}
-
 export function formatReview(review, creatorId, creatorName) {
-  const creator = creators.find(item => item.id === creatorId);
-
   return {
     id: review.review_id,
     userId: review.user_id ?? null,
     creatorId,
     createdAt: review.created_at,
-    creator: creatorName ?? creator?.name ?? 'Unknown creator',
+    creator: creatorName ?? 'Unknown creator',
     score: review.overall_rating,
     profanity: review.profanity,
     substance: review.substance_use,

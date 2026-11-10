@@ -1,13 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Play } from 'lucide-react';
-import './styles.css';
-import './reviews.css';
-import './auth.css';
-import './follows.css';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { creators as demoCreators, protectedPages } from './data/creators';
-import { creatorIdFromChannelLink, formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname, pathForPage, selectedIdFromPathname } from './utils';
+import { formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname, pathForPage, selectedIdFromPathname } from './utils';
 import { Header } from './components/shared';
 import { Home } from './pages/Home';
 import { DiscoverCreators } from './pages/DiscoverCreators';
@@ -20,6 +15,7 @@ import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
 
 const initialsFor = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'YT';
+const protectedPages = new Set(['dashboard', 'settings', 'rate', 'complete-profile']);
 const cleanYouTubeDescription = value => {
   const cleaned = String(value || '')
     .replace(/\b(?:contact(?: me)?|business inquiries?|inquiries?|email|discord|twitter|instagram|tiktok)\s*[:\-]?.*$/gim, '')
@@ -50,9 +46,6 @@ const rememberPageDestination = destination => {
   } catch { /* Storage may be unavailable in private browsing. */ }
 };
 const creatorFromDatabase = (row, typeNames) => {
-  const localId = creatorIdFromChannelLink(row.channel_link);
-  const demo = demoCreators.find(item => item.id === localId);
-  if (demo) return { ...demo, databaseId: row.creator_id, channelUrl: row.channel_link };
   const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || 'YouTube creator';
   return {
     id: `db-${row.creator_id}`,
@@ -63,7 +56,7 @@ const creatorFromDatabase = (row, typeNames) => {
     color: '#d9383e',
     thumbnailUrl: row.thumbnail_url || row.profile_pic_url || row.avatar_url || null,
     channelUrl: row.channel_link,
-    isImported: Boolean(row.youtube_channel_id) && !demo,
+    isImported: Boolean(row.youtube_channel_id),
     subscriberCount: row.subscriber_count === null ? null : Number(row.subscriber_count),
     videoCount: row.video_count === null ? null : Number(row.video_count),
     viewCount: row.view_count === null ? null : Number(row.view_count),
@@ -83,7 +76,7 @@ const creatorFromDatabase = (row, typeNames) => {
 };
 
 function App() {
-  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(() => selectedIdFromPathname() || window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState(demoCreators), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({}), [avatarUploading,setAvatarUploading]=useState(false), [avatarError,setAvatarError]=useState('');
+  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(() => selectedIdFromPathname() || window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState([]), [creatorsLoading,setCreatorsLoading]=useState(isSupabaseConfigured), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({}), [avatarUploading,setAvatarUploading]=useState(false), [avatarError,setAvatarError]=useState('');
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
@@ -279,11 +272,17 @@ function App() {
   useEffect(() => {
     async function loadDatabaseReviews() {
       if (!isSupabaseConfigured) {
+        setAppCreators([]);
+        setCreatorsLoading(false);
+        setReviews([]);
+        setDatabaseCreatorIds({});
+        setReviewsError('');
         setReviewsLoading(false);
         return;
       }
 
       setReviewsLoading(true);
+      setCreatorsLoading(true);
       const [creatorsResult, reviewsResult, typesResult] = await Promise.all([
         supabase.from('content_creators').select('*'),
         supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
@@ -291,6 +290,10 @@ function App() {
       ]);
 
       if (creatorsResult.error || reviewsResult.error) {
+        setAppCreators([]);
+        setCreatorsLoading(false);
+        setReviews([]);
+        setDatabaseCreatorIds({});
         setReviewsError(creatorsResult.error?.message || reviewsResult.error?.message || 'Reviews could not be loaded.');
         setReviewsLoading(false);
         return;
@@ -299,8 +302,6 @@ function App() {
       const typeNames = new Map((typesResult.data || []).map(type => [String(type.type_id), type.type_name]));
       const databaseCreators = creatorsResult.data.map(row => creatorFromDatabase(row, typeNames));
       const creatorByDatabaseId = new Map(databaseCreators.map(creator => [String(creator.databaseId), creator]));
-      const databaseIds = new Set(databaseCreators.map(creator => creator.databaseId));
-      const combinedCreators = [...databaseCreators, ...demoCreators.filter(creator => !databaseIds.has(creator.databaseId) && !databaseCreators.some(item => item.id === creator.id))];
       const idMap = Object.fromEntries(databaseCreators.map(creator => [creator.id, creator.databaseId]));
       const loadedReviews = reviewsResult.data.map(review => {
         const matchedCreator = creatorByDatabaseId.get(String(review.creator_id));
@@ -319,7 +320,7 @@ function App() {
         if (review.score >= 1 && review.score <= 5) current.scores[review.score - 1] += 1;
         ratingTotals.set(review.creatorId, current);
       }
-      setAppCreators(combinedCreators.map(creator => {
+      setAppCreators(databaseCreators.map(creator => {
         const rating = ratingTotals.get(creator.id);
         if (!rating) return creator;
         const mostCommon = values => Object.entries(values).sort((first, second) => second[1] - first[1])[0]?.[0];
@@ -335,6 +336,7 @@ function App() {
           ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
         };
       }));
+      setCreatorsLoading(false);
 
       const reviewIds = loadedReviews.map(review => review.id);
       let voteCounts = new Map();
@@ -424,7 +426,8 @@ function App() {
     }).select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
 
     if (error) throw new Error(error.message);
-    const insertedReview = formatReview(data, review.creatorId);
+    const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
+    const insertedReview = formatReview(data, review.creatorId, creatorName);
     setReviews(currentReviews => [insertedReview, ...currentReviews]);
     return insertedReview;
   };
@@ -469,7 +472,7 @@ function App() {
     window.history.pushState({ rmcPage: historyPage, selected: historyId, reviewId: historyReviewId }, '', nextPath);
     window.scrollTo(0,0);
   };
-  const creator=appCreators.find(c=>c.id===selected)||appCreators[0];
+  const creator=appCreators.find(c=>c.id===selected);
   const handleReviewVoteCountsChange = (reviewId, voteCounts) => {
     setReviews(current => current.map(review => review.id === reviewId ? { ...review, voteCounts } : review));
   };
@@ -477,9 +480,9 @@ function App() {
   if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
   return <>
     {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture}/>}
-    {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery}/>}
+    {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} creatorsLoading={creatorsLoading}/>}
     {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery} creators={appCreators}/>}
-    {page==='profile'&&<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>}
+    {page==='profile'&&(creator?<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>:<main className="page"><div className="empty"><h3>Creator not found</h3><p>There are no creators to show yet.</p><button className="secondary" onClick={() => navigate('creators')}>Discover creators</button></div></main>)}
     {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>}
     {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>}
     {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>}
