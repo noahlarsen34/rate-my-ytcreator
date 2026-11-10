@@ -3,7 +3,7 @@ import { Sparkles, ChevronRight } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
-export function Home({ navigate, query, setQuery }) {
+export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
   const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null, followedCreators: null });
 
   useEffect(() => {
