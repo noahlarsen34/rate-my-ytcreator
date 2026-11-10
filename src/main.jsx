@@ -65,7 +65,7 @@ const creatorFromDatabase = (row, typeNames) => {
 };
 
 function App() {
-  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(null), [selectedReviewId,setSelectedReviewId]=useState(null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState(demoCreators), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({});
+  const [page,setPage]=useState(() => window.history.state?.rmcPage || pageFromPathname()), [selected,setSelected]=useState(() => window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState(demoCreators), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({});
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
@@ -73,7 +73,16 @@ function App() {
   const authUserId = useRef(null);
 
   useEffect(() => {
-    const handlePopState = () => { setPage(pageFromPathname()); setSelected(null); setSelectedReviewId(null); window.scrollTo(0, 0); };
+    if (!window.history.state?.rmcPage) {
+      window.history.replaceState({ rmcPage: pageFromPathname(), selected: null, reviewId: null }, document.title, window.location.href);
+    }
+    const handlePopState = event => {
+      const state = event.state;
+      setPage(state?.rmcPage || pageFromPathname());
+      setSelected(state?.selected || null);
+      setSelectedReviewId(state?.reviewId || null);
+      window.scrollTo(0, 0);
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
@@ -95,7 +104,8 @@ function App() {
       ensureUsername(nextSession.user);
       if (signInNavigationHandled.current) return;
       const params = new URLSearchParams(window.location.search);
-      const isYouTubeCallback = params.get('auth') === 'youtube';
+      const authCallback = params.get('auth');
+      const isYouTubeCallback = authCallback === 'youtube';
       let destination = isYouTubeCallback ? { page: 'settings', id: null } : pendingDestination.current;
       try {
         destination ||= JSON.parse(window.sessionStorage.getItem('authReturnTo'));
@@ -109,8 +119,8 @@ function App() {
       setRequiresAuth(false);
       pendingDestination.current = null;
       window.sessionStorage.removeItem('authReturnTo');
-      if (params.get('auth') === 'callback') {
-        window.history.replaceState({}, document.title, window.location.pathname);
+      if (authCallback === 'callback' || authCallback === 'youtube') {
+        window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: null }, document.title, window.location.pathname);
       }
     };
     supabase.auth.getSession().then(({ data }) => {
@@ -355,6 +365,9 @@ function App() {
   };
 
   const navigate=(next,id=null,reviewId=null)=>{
+    let historyPage = next;
+    let historyId = id;
+    let historyReviewId = reviewId;
     if (protectedPages.has(next) && !session?.user) {
       const destination = { page: next, id };
       signInNavigationHandled.current = false;
@@ -362,9 +375,15 @@ function App() {
       window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
       setRequiresAuth(true);
       setPage('login');
+      historyPage = 'login';
+      historyId = null;
+      historyReviewId = null;
     } else if (protectedPages.has(next) && next !== 'complete-profile' && profileReady && !isProfileComplete(profile)) {
       window.sessionStorage.setItem('profileReturnTo', JSON.stringify({ page: next, id }));
       setPage('complete-profile');
+      historyPage = 'complete-profile';
+      historyId = null;
+      historyReviewId = null;
     } else {
       if (!['login','signup'].includes(next)) {
         pendingDestination.current = null;
@@ -374,9 +393,9 @@ function App() {
       setSelected(id);
       setPage(next);
     }
-    const nextPath = next === 'privacy' ? '/privacy' : next === 'terms' ? '/terms' : '/';
-    setSelectedReviewId(reviewId);
-    if (window.location.pathname !== nextPath) window.history.pushState({}, '', nextPath);
+    const nextPath = historyPage === 'privacy' ? '/privacy' : historyPage === 'terms' ? '/terms' : '/';
+    setSelectedReviewId(historyReviewId);
+    window.history.pushState({ rmcPage: historyPage, selected: historyId, reviewId: historyReviewId }, '', nextPath);
     window.scrollTo(0,0);
   };
   const creator=appCreators.find(c=>c.id===selected)||appCreators[0];
