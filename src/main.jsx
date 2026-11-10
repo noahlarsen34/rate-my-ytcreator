@@ -31,6 +31,14 @@ const cleanYouTubeDescription = value => {
   if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
+const lastViewedCreatorDestination = () => {
+  try {
+    const id = window.localStorage.getItem('lastViewedCreatorId');
+    return id ? { page: 'profile', id } : null;
+  } catch {
+    return null;
+  }
+};
 const creatorFromDatabase = (row, typeNames) => {
   const localId = creatorIdFromChannelLink(row.channel_link);
   const demo = demoCreators.find(item => item.id === localId);
@@ -88,6 +96,11 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (page !== 'profile' || !selected) return;
+    try { window.localStorage.setItem('lastViewedCreatorId', selected); } catch { /* Storage may be unavailable in private browsing. */ }
+  }, [page, selected]);
+
+  useEffect(() => {
     if (!isSupabaseConfigured) return;
     const ensureUsername = authUser => {
       if (!authUser?.id || authUser.user_metadata?.username || usernameUpdatesInFlight.current.has(authUser.id)) return;
@@ -112,6 +125,7 @@ function App() {
       } catch {
         destination = null;
       }
+      destination ||= lastViewedCreatorDestination();
       destination ||= { page: 'dashboard', id: null };
       signInNavigationHandled.current = true;
       setSelected(destination.id || null);
@@ -184,7 +198,7 @@ function App() {
   }, [authReady, page, selected, session]);
 
   useEffect(() => {
-    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || page === 'complete-profile' || !protectedPages.has(page)) return;
+    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || ['complete-profile', 'login', 'signup'].includes(page)) return;
     const destination = { page, id: selected };
     window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
     setPage('complete-profile');
@@ -193,7 +207,7 @@ function App() {
 
   const finishProfile = nextProfile => {
     handleProfileChanged(nextProfile);
-    let destination = { page: 'dashboard', id: null };
+    let destination = lastViewedCreatorDestination() || { page: 'dashboard', id: null };
     try {
       destination = JSON.parse(window.sessionStorage.getItem('profileReturnTo')) || destination;
     } catch {
@@ -202,6 +216,7 @@ function App() {
     window.sessionStorage.removeItem('profileReturnTo');
     setSelected(destination.id || null);
     setPage(destination.page);
+    window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: null }, document.title, '/');
     window.scrollTo(0, 0);
   };
 
@@ -368,6 +383,11 @@ function App() {
     let historyPage = next;
     let historyId = id;
     let historyReviewId = reviewId;
+    if (['login', 'signup'].includes(next) && page === 'profile' && selected) {
+      const destination = { page: 'profile', id: selected };
+      pendingDestination.current = destination;
+      window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
+    }
     if (protectedPages.has(next) && !session?.user) {
       const destination = { page: next, id };
       signInNavigationHandled.current = false;
