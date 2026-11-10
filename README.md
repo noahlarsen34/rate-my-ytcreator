@@ -33,8 +33,10 @@ This approach fits our team as we want enough control to be able to iterate on t
 - Issue-reporting modal
 - Responsive desktop and mobile layouts
 
-All creator and account data is fictional. Creator profiles are included in the
-app, while community reviews can be loaded from Supabase when configured.
+Creator seed profiles and sample homepage totals have been removed. The app
+currently shows an empty creator state while the YouTube data connection is
+being added. Community reviews continue to load from Supabase when configured;
+the dashboard only counts reviews submitted by the signed-in user.
 
 # Run locally
 

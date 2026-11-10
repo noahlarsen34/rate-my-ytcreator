@@ -1,22 +1,13 @@
-import { creators } from './data/creators';
-
-export function creatorIdFromChannelLink(channelLink) {
-  const handle = channelLink?.match(/@([^/?#]+)/)?.[1]?.toLowerCase();
-  return creators.find(creator => creator.handle.slice(1).toLowerCase() === handle)?.id;
-}
-
-export function formatReview(review, creatorId) {
-  const creator = creators.find(item => item.id === creatorId);
-
+export function formatReview(review, creatorId, creatorName) {
   return {
     id: review.review_id,
     userId: review.user_id ?? null,
     creatorId,
     createdAt: review.created_at,
-    creator: creator?.name ?? 'Unknown creator',
-    score: review.overall_rating,
-    profanity: review.profanity,
-    substance: review.substance_use,
+    creator: creatorName ?? 'Unknown creator',
+    score: Number(review.overall_rating),
+    profanity: Number(review.profanity),
+    substance: Number(review.substance_use),
     ageLevel: review.age_level,
     usesAi: review.uses_ai,
     text: review.review_text,
@@ -56,7 +47,34 @@ export function profileDefaults(user, profile = {}) {
 }
 
 export function pageFromPathname() {
-  if (window.location.pathname === '/privacy') return 'privacy';
-  if (window.location.pathname === '/terms') return 'terms';
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/discover') return 'creators';
+  if (path.startsWith('/creators/')) return 'profile';
+  if (path === '/privacy') return 'privacy';
+  if (path === '/terms') return 'terms';
+  if (path === '/login') return 'login';
+  if (path === '/signup') return 'signup';
+  if (path === '/dashboard') return 'dashboard';
+  if (path === '/settings') return 'settings';
+  if (path === '/rate') return 'rate';
+  if (path === '/complete-profile') return 'complete-profile';
   return 'home';
+}
+
+export function selectedIdFromPathname() {
+  const match = window.location.pathname.match(/^\/creators\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+export function pathForPage(page, id = null) {
+  if (page === 'creators') return '/discover';
+  if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
+  if (page === 'privacy' || page === 'terms') return `/${page}`;
+  if (['login', 'signup', 'dashboard', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
+  return '/';
 }

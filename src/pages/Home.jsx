@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, ChevronRight } from 'lucide-react';
-import { creators } from '../data/creators';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
@@ -30,11 +29,10 @@ export function Home({ navigate, query, setQuery }) {
       <h1>Know what’s worth<br /><em>your watch time.</em></h1>
       <p>Discover creators you’ll love—and get the full picture before you hit subscribe.</p>
       <div className="hero-search"><SearchBox value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
-      <div className="trend"><span>Trending:</span>{['science', 'DIY', 'travel'].map(x => <button key={x} onClick={() => { setQuery(x); navigate('creators'); }}>{x}</button>)}</div>
     </section>
     <section className="section featured">
-      <div className="section-title"><div><span className="kicker">COMMUNITY FAVORITES</span><h2>Creators people trust</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
-      <div className="card-grid">{creators.filter(c => c.featured).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div>
+      <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Creators in the community</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
+      {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : creators.length ? <div className="card-grid">{creators.slice(0, 3).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>No creators yet</h3><p>Creators will appear here when they are added to the community.</p></div>}
     </section>
     <section className="trust-strip">
       <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>{siteCounts.followedCreators === null ? '—' : Number(siteCounts.followedCreators).toLocaleString()}</strong><span>creators followed</span></div>
