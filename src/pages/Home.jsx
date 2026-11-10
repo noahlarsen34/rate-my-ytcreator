@@ -3,16 +3,22 @@ import { Sparkles, ChevronRight } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
-export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
-  const [ratingCount, setRatingCount] = useState(null);
+export function Home({ navigate, query, setQuery }) {
+  const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null, followedCreators: null });
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let active = true;
-    supabase.from('reviews').select('*', { count: 'exact', head: true }).then(ratingsResult => {
+    Promise.all([
+      supabase.from('reviews').select('*', { count: 'exact', head: true }),
+      supabase.from('content_creators').select('*', { count: 'exact', head: true }),
+      supabase.rpc('get_followed_creator_count')
+    ]).then(([ratingsResult, creatorsResult, followedResult]) => {
       if (!active) return;
       if (ratingsResult.error) console.error('Rating count could not be loaded:', ratingsResult.error.message);
-      setRatingCount(ratingsResult.error ? null : ratingsResult.count);
+      if (creatorsResult.error) console.error('Creator count could not be loaded:', creatorsResult.error.message);
+      if (followedResult.error) console.error('Followed creator count could not be loaded:', followedResult.error.message);
+      setSiteCounts({ ratings: ratingsResult.error ? null : ratingsResult.count, creators: creatorsResult.error ? null : creatorsResult.count, followedCreators: followedResult.error ? null : followedResult.data });
     });
     return () => { active = false; };
   }, []);
@@ -29,7 +35,7 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
       {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : creators.length ? <div className="card-grid">{creators.slice(0, 3).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>No creators yet</h3><p>Creators will appear here when they are added to the community.</p></div>}
     </section>
     <section className="trust-strip">
-      <div><strong>{ratingCount === null ? '—' : ratingCount.toLocaleString()}</strong><span>community ratings</span></div><div><strong>{creators.length.toLocaleString()}</strong><span>creators</span></div>
+      <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>{siteCounts.followedCreators === null ? '—' : Number(siteCounts.followedCreators).toLocaleString()}</strong><span>creators followed</span></div>
     </section>
     <section className="section google-data-summary" aria-labelledby="google-data-heading">
       <span className="kicker">OPTIONAL YOUTUBE CONNECTION</span>
