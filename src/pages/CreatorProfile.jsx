@@ -8,7 +8,7 @@ export function Profile({ creator, navigate, reviews, reviewsLoading, reviewsErr
     .filter(review => review.creatorId === creator.id)
     .sort((a, b) => (b.voteCounts?.up ?? 0) - (a.voteCounts?.up ?? 0) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   const hasRatings = creator.reviews > 0;
-  const ratingBreakdown = creator.ratingBreakdown || [1, 2, 7, 22, 68];
+  const ratingBreakdown = creator.ratingBreakdown || [0, 0, 0, 0, 0];
   const formatStat = value => value === null || value === undefined ? 'Not available' : Number(value).toLocaleString();
   useEffect(() => {
     if (!reviewFocusId || reviewsLoading) return;
