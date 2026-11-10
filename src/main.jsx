@@ -172,6 +172,11 @@ function App() {
       if (signInNavigationHandled.current) return;
       const params = new URLSearchParams(window.location.search);
       const authCallback = params.get('auth');
+      if (authCallback === 'recovery') {
+        signInNavigationHandled.current = true;
+        setPage('login');
+        return;
+      }
       const isYouTubeCallback = authCallback === 'youtube';
       let destination = isYouTubeCallback ? { page: 'settings', id: null } : pendingDestination.current;
       try {
@@ -199,7 +204,7 @@ function App() {
       setAuthReady(true);
       ensureUsername(data.session?.user);
       const authCallback = new URLSearchParams(window.location.search).get('auth');
-      if (data.session && (authCallback === 'callback' || authCallback === 'youtube')) finishSignIn(data.session);
+      if (data.session && ['callback', 'youtube', 'recovery'].includes(authCallback)) finishSignIn(data.session);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       const nextUserId = nextSession?.user?.id || null;
@@ -207,7 +212,7 @@ function App() {
       authUserId.current = nextUserId;
       setSession(nextSession);
       setAuthReady(true);
-      if (event === 'SIGNED_IN') finishSignIn(nextSession);
+      if (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') finishSignIn(nextSession);
       if (event === 'SIGNED_OUT') signInNavigationHandled.current = false;
     });
     return () => subscription.unsubscribe();
