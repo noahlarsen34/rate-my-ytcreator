@@ -21,3 +21,39 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+.score-card.unrated > strong {
+  color: #777780;
+}
+
+.score-card.unrated > b {
+  display: block;
+  font-size: 14px;
+}
+
+.ratings-empty {
+  padding: 30px 16px 12px;
+  text-align: center;
+  color: #8b8b94;
+}
+
+.ratings-empty > svg {
+  color: #5f5f68;
+}
+
+.ratings-empty h3 {
+  color: #f1f1f3;
+  margin: 12px 0 6px;
+}
+
+.ratings-empty p,
+.breakdown-empty p {
+  color: #85858e;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.breakdown-empty {
+  display: block !important;
+  padding: 10px 0;
+}

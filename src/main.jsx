@@ -20,6 +20,17 @@ import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
 
 const initialsFor = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'YT';
+const cleanYouTubeDescription = value => {
+  const cleaned = String(value || '')
+    .replace(/\b(?:contact(?: me)?|business inquiries?|inquiries?|email|discord|twitter|instagram|tiktok)\s*[:\-]?.*$/gim, '')
+    .replace(/\bhttps?:\/\/\S+/gi, '')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '')
+    .replace(/[|•]+\s*$/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
+  return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
+};
 const creatorFromDatabase = (row, typeNames) => {
   const localId = creatorIdFromChannelLink(row.channel_link);
   const demo = demoCreators.find(item => item.id === localId);
@@ -34,17 +45,22 @@ const creatorFromDatabase = (row, typeNames) => {
     color: '#d9383e',
     thumbnailUrl: row.thumbnail_url || row.profile_pic_url || row.avatar_url || null,
     channelUrl: row.channel_link,
+    isImported: Boolean(row.youtube_channel_id) && !demo,
+    subscriberCount: row.subscriber_count === null ? null : Number(row.subscriber_count),
+    videoCount: row.video_count === null ? null : Number(row.video_count),
+    viewCount: row.view_count === null ? null : Number(row.view_count),
     score: 0,
     reviews: 0,
     category: typeNames.get(String(row.type_id)) || 'YouTube',
-    audience: 'Not rated yet',
-    topic: row.subscriber_count ? `${Number(row.subscriber_count).toLocaleString()} YouTube subscribers` : 'YouTube creator',
+    audience: 'Community rating pending',
+    topic: typeNames.get(String(row.type_id)) || 'YouTube creator',
     tagline: 'New to Rate My Creator',
-    description: row.creator_description || 'This creator was imported from YouTube. Community details and ratings will appear as people contribute.',
+    description: cleanYouTubeDescription(row.creator_description || row.description),
     truth: 0,
     profanity: 1,
     substance: 1,
-    ai: 'Unknown'
+    ai: 'Not enough data',
+    ratingBreakdown: [0, 0, 0, 0, 0]
   };
 };
 
@@ -218,14 +234,31 @@ function App() {
 
       const ratingTotals = new Map();
       for (const review of loadedReviews) {
-        const current = ratingTotals.get(review.creatorId) || { total: 0, count: 0 };
+        const current = ratingTotals.get(review.creatorId) || { total: 0, profanity: 0, substance: 0, count: 0, ages: {}, ai: {}, scores: [0, 0, 0, 0, 0] };
         current.total += review.score;
+        current.profanity += review.profanity;
+        current.substance += review.substance;
         current.count += 1;
+        current.ages[review.ageLevel] = (current.ages[review.ageLevel] || 0) + 1;
+        if (review.usesAi && review.usesAi !== 'Unsure') current.ai[review.usesAi] = (current.ai[review.usesAi] || 0) + 1;
+        if (review.score >= 1 && review.score <= 5) current.scores[review.score - 1] += 1;
         ratingTotals.set(review.creatorId, current);
       }
       setAppCreators(combinedCreators.map(creator => {
         const rating = ratingTotals.get(creator.id);
-        return rating ? { ...creator, score: rating.total / rating.count, reviews: rating.count } : creator;
+        if (!rating) return creator;
+        const mostCommon = values => Object.entries(values).sort((first, second) => second[1] - first[1])[0]?.[0];
+        return {
+          ...creator,
+          score: rating.total / rating.count,
+          reviews: rating.count,
+          truth: rating.total / rating.count,
+          profanity: rating.profanity / rating.count,
+          substance: rating.substance / rating.count,
+          audience: mostCommon(rating.ages) || 'Not enough data',
+          ai: mostCommon(rating.ai) || 'Not enough data',
+          ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
+        };
       }));
 
       const reviewIds = loadedReviews.map(review => review.id);

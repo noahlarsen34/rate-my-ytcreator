@@ -201,7 +201,7 @@ Deno.serve(async request => {
         const availableColumns = new Set(Object.keys(sampleCreator || { first_name: true, last_name: true, creator_description: true, channel_link: true, type_id: true, youtube_channel_id: true }));
         const { data: channelTypes, error: typeError } = await admin.from('channel_types').select('type_id, type_name').order('type_id').limit(100);
         if (typeError) throw typeError;
-        const fallbackType = (channelTypes || []).find(type => /other|general/i.test(type.type_name || '')) || channelTypes?.[0];
+        const fallbackType = (channelTypes || []).find(type => /uncategorized|other|general/i.test(type.type_name || '')) || channelTypes?.[0];
         if (!fallbackType) throw new Error('Create at least one channel type before importing YouTube creators.');
         const syncedAt = new Date().toISOString();
         const rows = channels.map(channel => {
@@ -209,6 +209,7 @@ Deno.serve(async request => {
             first_name: channel.title,
             last_name: null,
             creator_description: channel.description || null,
+            description: channel.description || null,
             channel_link: `https://www.youtube.com/channel/${channel.channelId}`,
             type_id: fallbackType.type_id,
             youtube_channel_id: channel.channelId,
