@@ -22,7 +22,7 @@ export function SearchBox({ value, setValue, onSubmit, compact = false }) {
   );
 }
 
-export function Header({ navigate, query, setQuery, user, profileUsername }) {
+export function Header({ navigate, query, setQuery, user, profileUsername, avatarUrl }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef(null);
@@ -51,7 +51,8 @@ export function Header({ navigate, query, setQuery, user, profileUsername }) {
       <nav className={mobileNavOpen ? 'open' : ''}>
         <button onClick={() => goTo('creators')}>Discover</button>
         {user ? <div className="account-menu" ref={accountMenuRef}>
-          <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}><UserRound size={18} /> {displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
+          <span className="account-avatar">{avatarUrl ? <img src={avatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={18}/>}</span>
+          <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>{displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
           {accountMenuOpen && <div className="account-dropdown" role="menu">
             <button role="menuitem" onClick={() => goTo('dashboard')}>Dashboard</button>
             <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
