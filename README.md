@@ -31,8 +31,10 @@ This approach fits our team as we want enough control to be able to iterate on t
 - Issue-reporting modal
 - Responsive desktop and mobile layouts
 
-All creator and account data is fictional. Creator profiles are included in the
-app, while community reviews can be loaded from Supabase when configured.
+Creator seed profiles and sample homepage totals have been removed. The app
+currently shows an empty creator state while the YouTube data connection is
+being added. Community reviews continue to load from Supabase when configured;
+the dashboard only counts reviews submitted by the signed-in user.
 
 # Run locally
 
@@ -58,13 +60,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 Restart npm run dev after adding or changing these values. Do not commit .env.local; it is intentionally ignored by Git.
 
-# Vertical Slice - Review Button
+# Review flow
 
-To test the working review flow, make sure Supabase is configured as described above, then:
-
-1. Click Log in.
-2. Sign in with Google or a registered email/password account.
-3. Open any creator’s profile and click 'Rate this creator'.
-4. Fill out the review form and submit it.
-5. Refresh the page. Your authenticated session should remain active.
-6. Return to the creator’s profile. Your submitted review should appear in the review list.
+The review form and Supabase storage are in place. Submitting a review is
+temporarily unavailable until real creator profiles are connected, because a
+review must reference a creator record in the database.
