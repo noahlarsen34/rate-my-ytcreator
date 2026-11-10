@@ -67,12 +67,63 @@ const creatorFromDatabase = (row, typeNames) => {
     topic: typeNames.get(String(row.type_id)) || 'YouTube creator',
     tagline: 'New to Rate My Creator',
     description: cleanYouTubeDescription(row.creator_description || row.description),
-    truth: 0,
     profanity: 1,
     substance: 1,
     ai: 'Not enough data',
-    ratingBreakdown: [0, 0, 0, 0, 0]
+    ratingBreakdown: Array(10).fill(0)
   };
+};
+
+const creatorsWithReviewSummaries = (creators, reviews) => {
+  const totals = new Map();
+  for (const review of reviews) {
+    const score = Number(review.score);
+    if (!Number.isFinite(score) || score < 0.5 || score > 5) continue;
+    const current = totals.get(review.creatorId) || {
+      total: 0,
+      profanity: 0,
+      substance: 0,
+      count: 0,
+      ages: {},
+      ai: {},
+      scores: Array(10).fill(0)
+    };
+    current.total += score;
+    current.profanity += Number(review.profanity) || 0;
+    current.substance += Number(review.substance) || 0;
+    current.count += 1;
+    if (review.ageLevel) current.ages[review.ageLevel] = (current.ages[review.ageLevel] || 0) + 1;
+    if (review.usesAi && review.usesAi !== 'Unsure') current.ai[review.usesAi] = (current.ai[review.usesAi] || 0) + 1;
+    current.scores[Math.round(score * 2) - 1] += 1;
+    totals.set(review.creatorId, current);
+  }
+
+  const mostCommon = values => Object.entries(values).sort((first, second) => second[1] - first[1])[0]?.[0];
+  return creators.map(creator => {
+    const rating = totals.get(creator.id);
+    if (!rating) {
+      return {
+        ...creator,
+        score: 0,
+        reviews: 0,
+        profanity: 1,
+        substance: 1,
+        audience: 'Community rating pending',
+        ai: 'Not enough data',
+        ratingBreakdown: Array(10).fill(0)
+      };
+    }
+    return {
+      ...creator,
+      score: rating.total / rating.count,
+      reviews: rating.count,
+      profanity: rating.profanity / rating.count,
+      substance: rating.substance / rating.count,
+      audience: mostCommon(rating.ages) || 'Not enough data',
+      ai: mostCommon(rating.ai) || 'Not enough data',
+      ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
+    };
+  });
 };
 
 function App() {
@@ -308,34 +359,7 @@ function App() {
         return matchedCreator ? formatReview(review, matchedCreator.id, matchedCreator.name) : null;
       }).filter(Boolean);
 
-      const ratingTotals = new Map();
-      for (const review of loadedReviews) {
-        const current = ratingTotals.get(review.creatorId) || { total: 0, profanity: 0, substance: 0, count: 0, ages: {}, ai: {}, scores: [0, 0, 0, 0, 0] };
-        current.total += review.score;
-        current.profanity += review.profanity;
-        current.substance += review.substance;
-        current.count += 1;
-        current.ages[review.ageLevel] = (current.ages[review.ageLevel] || 0) + 1;
-        if (review.usesAi && review.usesAi !== 'Unsure') current.ai[review.usesAi] = (current.ai[review.usesAi] || 0) + 1;
-        if (review.score >= 1 && review.score <= 5) current.scores[review.score - 1] += 1;
-        ratingTotals.set(review.creatorId, current);
-      }
-      setAppCreators(databaseCreators.map(creator => {
-        const rating = ratingTotals.get(creator.id);
-        if (!rating) return creator;
-        const mostCommon = values => Object.entries(values).sort((first, second) => second[1] - first[1])[0]?.[0];
-        return {
-          ...creator,
-          score: rating.total / rating.count,
-          reviews: rating.count,
-          truth: rating.total / rating.count,
-          profanity: rating.profanity / rating.count,
-          substance: rating.substance / rating.count,
-          audience: mostCommon(rating.ages) || 'Not enough data',
-          ai: mostCommon(rating.ai) || 'Not enough data',
-          ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
-        };
-      }));
+      setAppCreators(creatorsWithReviewSummaries(databaseCreators, loadedReviews));
       setCreatorsLoading(false);
 
       const reviewIds = loadedReviews.map(review => review.id);
@@ -428,7 +452,9 @@ function App() {
     if (error) throw new Error(error.message);
     const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
     const insertedReview = formatReview(data, review.creatorId, creatorName);
-    setReviews(currentReviews => [insertedReview, ...currentReviews]);
+    const nextReviews = [insertedReview, ...reviews];
+    setReviews(nextReviews);
+    setAppCreators(currentCreators => creatorsWithReviewSummaries(currentCreators, nextReviews));
     return insertedReview;
   };
 
