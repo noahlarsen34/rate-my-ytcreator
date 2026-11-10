@@ -110,6 +110,37 @@ async function creatorRowsForChannels(admin: any, channelIds: string[]) {
   return creators;
 }
 
+// deno-lint-ignore no-explicit-any
+async function refreshImportedCreatorStats(admin: any, accessToken: string) {
+  const creators: Array<{ creator_id: string; youtube_channel_id: string }> = [];
+  let offset = 0;
+  const pageSize = 500;
+  while (true) {
+    const { data, error } = await admin.from('content_creators')
+      .select('creator_id, youtube_channel_id')
+      .not('youtube_channel_id', 'is', null)
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    creators.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  const channels = await fetchChannelDetails(creators.map(creator => creator.youtube_channel_id), accessToken);
+  const channelById = new Map(channels.map(channel => [channel.channelId, channel]));
+  let refreshed = 0;
+  for (const creator of creators) {
+    const channel = channelById.get(creator.youtube_channel_id);
+    if (!channel) continue;
+    const { error } = await admin.from('content_creators').update({
+      subscriber_count: channel.subscriberCount,
+    }).eq('creator_id', creator.creator_id);
+    if (error) throw error;
+    refreshed += 1;
+  }
+  return refreshed;
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405);
@@ -269,8 +300,9 @@ Deno.serve(async request => {
       const { error } = await admin.from('creator_follows').upsert(follows, { onConflict: 'user_id,creator_id,source', ignoreDuplicates: true }); if (error) throw error;
     }
     const syncedAt = new Date().toISOString();
+    const refreshedCreatorStats = await refreshImportedCreatorStats(admin, accessToken);
     const { error: syncError } = await admin.from('youtube_connections').update({ last_synced_at: syncedAt, updated_at: syncedAt }).eq('user_id', userId); if (syncError) throw syncError;
-    return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length });
+    return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length, refreshedCreatorStats });
   } catch (error) {
     const message = errorMessage(error);
     console.error('youtube-sync failed:', message, error);
