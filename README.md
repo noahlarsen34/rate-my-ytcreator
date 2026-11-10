@@ -26,7 +26,9 @@ This approach fits our team as we want enough control to be able to iterate on t
 - Detailed creator profiles with scores, audience guidance, and rating breakdowns
 - Rating form with required fields and 150-word limit
 - Ratings save with a supabase-supported database
+- Signed-in users can upvote or downvote reviews, with vote counts saved in Supabase
 - Supabase email/password and Google authentication with persistent sessions
+- Required profile onboarding backed by the private `public.users` table
 - User dashboard and editable account settings
 - Issue-reporting modal
 - Responsive desktop and mobile layouts
@@ -60,8 +62,39 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 Restart npm run dev after adding or changing these values. Do not commit .env.local; it is intentionally ignored by Git.
 
-# Review flow
+# Create an account
+Create an account to submit reviews and like existing reviews.
+1. Click Sign up.
+2. Sign up with Google, or fill in the required fields below the Google sign-in button.
+3. Click Create account.
+4. Confirm your email address.
 
-The review form and Supabase storage are in place. Submitting a review is
-temporarily unavailable until real creator profiles are connected, because a
-review must reference a creator record in the database.
+
+# Vertical Slice - Review Button
+
+To test the working review flow, make sure Supabase is configured as described above, then:
+
+1. Click Log in.
+2. Sign in with Google or a registered email/password account.
+3. Open any creator’s profile and click 'Rate this creator'.
+4. Fill out the review form and submit it.
+5. Refresh the page. Your authenticated session should remain active
+6. Return to the creator’s profile. Your submitted review should appear in the review list.
+
+# Vertical Slice - Voting on a Review
+To test the working review voting flow, make sure Supabase is configured as described above and the `review_votes` setup in `supabase/review-votes.sql` has been applied, then:
+1. Click Log in and sign in with a registered account.
+2. Open a creator’s profile and find a review in the Recent reviews section.
+3. Click the thumbs-up or thumbs-down button to vote on the review.
+4. Click the same button again to remove your vote, or choose the other button to change it.
+5. If you try to vote while signed out, a prompt appears with a link to log in. Click Log in and sign in to continue.
+6. Refresh the page. Your vote and the vote counts should remain saved.
+
+# Vertical Slice - Editing an Account
+To test the working account editing flow, make sure Supabase is configured as described above and sign in with an account, then:
+1. Open your dashboard.
+2. Click the Settings button to open Account settings.
+3. Click Edit profile.
+4. Update your username or personal information, such as your first name, last name, birthday, phone number, or gender. Your email address is displayed as read-only.
+5. Click Save changes. A confirmation should appear after your profile is saved.
+6. Refresh the page and return to Account settings. Your saved information should still be displayed.
