@@ -1,8 +1,27 @@
+import { useEffect, useState } from 'react';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { creators } from '../data/creators';
 import { SearchBox, CreatorCard } from '../components/shared';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export function Home({ navigate, query, setQuery }) {
+  const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let active = true;
+    Promise.all([
+      supabase.from('reviews').select('*', { count: 'exact', head: true }),
+      supabase.from('content_creators').select('*', { count: 'exact', head: true })
+    ]).then(([ratingsResult, creatorsResult]) => {
+      if (!active) return;
+      if (ratingsResult.error) console.error('Rating count could not be loaded:', ratingsResult.error.message);
+      if (creatorsResult.error) console.error('Creator count could not be loaded:', creatorsResult.error.message);
+      setSiteCounts({ ratings: ratingsResult.error ? null : ratingsResult.count, creators: creatorsResult.error ? null : creatorsResult.count });
+    });
+    return () => { active = false; };
+  }, []);
+
   return <main>
     <section className="hero">
       <div className="eyebrow"><Sparkles size={15} /> Real people. Honest ratings.</div>
@@ -16,7 +35,7 @@ export function Home({ navigate, query, setQuery }) {
       <div className="card-grid">{creators.filter(c => c.featured).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div>
     </section>
     <section className="trust-strip">
-      <div><strong>8,420+</strong><span>community ratings</span></div><div><strong>540</strong><span>creators reviewed</span></div><div><strong>4.7</strong><span>average usefulness</span></div>
+      <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>4.7</strong><span>average usefulness</span></div>
     </section>
     <section className="section google-data-summary" aria-labelledby="google-data-heading">
       <span className="kicker">OPTIONAL YOUTUBE CONNECTION</span>
