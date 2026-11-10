@@ -188,7 +188,8 @@ function App() {
       setRequiresAuth(false);
       pendingDestination.current = null;
       window.sessionStorage.removeItem('authReturnTo');
-      if (authCallback === 'callback' || authCallback === 'youtube') {
+      // Keep the YouTube marker until AccountSettings consumes the provider token.
+      if (authCallback === 'callback') {
         window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, pathForPage(destination.page, destination.id));
       }
     };
