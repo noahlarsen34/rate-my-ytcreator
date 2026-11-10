@@ -56,7 +56,34 @@ export function profileDefaults(user, profile = {}) {
 }
 
 export function pageFromPathname() {
-  if (window.location.pathname === '/privacy') return 'privacy';
-  if (window.location.pathname === '/terms') return 'terms';
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/discover') return 'creators';
+  if (path.startsWith('/creators/')) return 'profile';
+  if (path === '/privacy') return 'privacy';
+  if (path === '/terms') return 'terms';
+  if (path === '/login') return 'login';
+  if (path === '/signup') return 'signup';
+  if (path === '/dashboard') return 'dashboard';
+  if (path === '/settings') return 'settings';
+  if (path === '/rate') return 'rate';
+  if (path === '/complete-profile') return 'complete-profile';
   return 'home';
+}
+
+export function selectedIdFromPathname() {
+  const match = window.location.pathname.match(/^\/creators\/([^/]+)\/?$/);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+export function pathForPage(page, id = null) {
+  if (page === 'creators') return '/discover';
+  if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
+  if (page === 'privacy' || page === 'terms') return `/${page}`;
+  if (['login', 'signup', 'dashboard', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
+  return '/';
 }

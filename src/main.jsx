@@ -7,7 +7,7 @@ import './auth.css';
 import './follows.css';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { creators as demoCreators, protectedPages } from './data/creators';
-import { creatorIdFromChannelLink, formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname } from './utils';
+import { creatorIdFromChannelLink, formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname, pathForPage, selectedIdFromPathname } from './utils';
 import { Header } from './components/shared';
 import { Home } from './pages/Home';
 import { DiscoverCreators } from './pages/DiscoverCreators';
@@ -83,7 +83,7 @@ const creatorFromDatabase = (row, typeNames) => {
 };
 
 function App() {
-  const [page,setPage]=useState(() => window.history.state?.rmcPage || pageFromPathname()), [selected,setSelected]=useState(() => window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState(demoCreators), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({});
+  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(() => selectedIdFromPathname() || window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState(demoCreators), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({});
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
@@ -92,12 +92,12 @@ function App() {
 
   useEffect(() => {
     if (!window.history.state?.rmcPage) {
-      window.history.replaceState({ rmcPage: pageFromPathname(), selected: null, reviewId: null }, document.title, window.location.href);
+      window.history.replaceState({ rmcPage: pageFromPathname(), selected: selectedIdFromPathname(), reviewId: null }, document.title, window.location.href);
     }
     const handlePopState = event => {
       const state = event.state;
       setPage(state?.rmcPage || pageFromPathname());
-      setSelected(state?.selected || null);
+      setSelected(state?.selected || selectedIdFromPathname());
       setSelectedReviewId(state?.reviewId || null);
       window.scrollTo(0, 0);
     };
@@ -145,7 +145,7 @@ function App() {
       pendingDestination.current = null;
       window.sessionStorage.removeItem('authReturnTo');
       if (authCallback === 'callback' || authCallback === 'youtube') {
-        window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, window.location.pathname);
+        window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, pathForPage(destination.page, destination.id));
       }
     };
     supabase.auth.getSession().then(({ data }) => {
@@ -206,6 +206,7 @@ function App() {
     window.sessionStorage.setItem('authReturnTo', JSON.stringify(destination));
     setRequiresAuth(true);
     setPage('login');
+    window.history.replaceState({ rmcPage: 'login', selected: null, reviewId: null }, document.title, pathForPage('login'));
   }, [authReady, page, selected, selectedReviewId, session]);
 
   useEffect(() => {
@@ -213,6 +214,7 @@ function App() {
     const destination = { page, id: selected, reviewId: selectedReviewId };
     window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
     setPage('complete-profile');
+    window.history.replaceState({ rmcPage: 'complete-profile', selected: null, reviewId: null }, document.title, pathForPage('complete-profile'));
     window.scrollTo(0, 0);
   }, [authReady, page, profile, profileReady, selected, selectedReviewId, session?.user]);
 
@@ -228,7 +230,7 @@ function App() {
     setSelected(destination.id || null);
     setSelectedReviewId(destination.reviewId || null);
     setPage(destination.page);
-    window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, '/');
+    window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, pathForPage(destination.page, destination.id));
     window.scrollTo(0, 0);
   };
 
@@ -236,6 +238,7 @@ function App() {
     window.sessionStorage.removeItem('profileReturnTo');
     if (supabase) await supabase.auth.signOut();
     setPage('home');
+    window.history.replaceState({ rmcPage: 'home', selected: null, reviewId: null }, document.title, '/');
   };
 
   useEffect(() => {
@@ -426,7 +429,7 @@ function App() {
       setSelected(id);
       setPage(next);
     }
-    const nextPath = historyPage === 'privacy' ? '/privacy' : historyPage === 'terms' ? '/terms' : '/';
+    const nextPath = pathForPage(historyPage, historyId);
     setSelectedReviewId(historyReviewId);
     window.history.pushState({ rmcPage: historyPage, selected: historyId, reviewId: historyReviewId }, '', nextPath);
     window.scrollTo(0,0);
