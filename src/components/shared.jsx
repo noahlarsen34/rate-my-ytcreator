@@ -12,6 +12,15 @@ export function Stars({ score, small = false }) {
   return <span className={`stars ${small ? 'small' : ''}`}><Star fill="currentColor" /> <b>{score.toFixed(1)}</b></span>;
 }
 
+export function ReviewAuthor({ review, navigate }) {
+  if (!review.userId) return <span className="review-author unavailable"><span className="review-author-avatar"><UserRound size={16}/></span><b>Community member</b></span>;
+  const name = review.authorUsername || 'Community member';
+  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate('user-profile', review.userId); }} aria-label={`View ${name}'s profile`}>
+    <span className="review-author-avatar">{review.authorAvatarUrl ? <img src={review.authorAvatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={16}/>}</span>
+    <b>{name.startsWith('@') ? name : `@${name}`}</b>
+  </button>;
+}
+
 export function SearchBox({ value, setValue, onSubmit, compact = false }) {
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
