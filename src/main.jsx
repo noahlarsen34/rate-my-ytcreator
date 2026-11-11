@@ -57,6 +57,7 @@ const creatorFromDatabase = (row, typeNames) => {
     color: '#d9383e',
     thumbnailUrl: row.thumbnail_url || row.profile_pic_url || row.avatar_url || null,
     channelUrl: row.channel_link,
+    youtubeChannelId: row.youtube_channel_id || null,
     isImported: Boolean(row.youtube_channel_id),
     subscriberCount: row.subscriber_count === null ? null : Number(row.subscriber_count),
     videoCount: row.video_count === null ? null : Number(row.video_count),
@@ -194,7 +195,8 @@ function App() {
       setRequiresAuth(false);
       pendingDestination.current = null;
       window.sessionStorage.removeItem('authReturnTo');
-      if (authCallback === 'callback' || authCallback === 'youtube') {
+      // Keep the YouTube marker until AccountSettings consumes the provider token.
+      if (authCallback === 'callback') {
         window.history.replaceState({ rmcPage: destination.page, selected: destination.id || null, reviewId: destination.reviewId || null }, document.title, pathForPage(destination.page, destination.id));
       }
     };
