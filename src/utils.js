@@ -56,13 +56,14 @@ export function pageFromPathname() {
   if (path === '/signup') return 'signup';
   if (path === '/dashboard') return 'dashboard';
   if (path === '/settings') return 'settings';
+  if (path.startsWith('/users/')) return 'user-profile';
   if (path === '/rate') return 'rate';
   if (path === '/complete-profile') return 'complete-profile';
   return 'home';
 }
 
 export function selectedIdFromPathname() {
-  const match = window.location.pathname.match(/^\/creators\/([^/]+)\/?$/);
+  const match = window.location.pathname.match(/^\/(?:creators|users)\/([^/]+)\/?$/);
   if (!match) return null;
   try {
     return decodeURIComponent(match[1]);
@@ -74,6 +75,7 @@ export function selectedIdFromPathname() {
 export function pathForPage(page, id = null) {
   if (page === 'creators') return '/discover';
   if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
+  if (page === 'user-profile') return id ? `/users/${encodeURIComponent(id)}` : '/';
   if (page === 'privacy' || page === 'terms') return `/${page}`;
   if (['login', 'signup', 'dashboard', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
   return '/';
