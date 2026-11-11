@@ -9,9 +9,23 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
-  const categories = useMemo(() => ['All', ...new Set(creators.map(c => c.category))], [creators]);
-  const filtered = useMemo(() => creators.filter(c => (selected.includes('All') || selected.includes(c.category)) && (`${c.name} ${c.topic} ${c.category}`).toLowerCase().includes(query.toLowerCase())), [creators, query, selected]);
-  const toggle = cat => setSelected(cat === 'All' ? ['All'] : (selected.includes(cat) ? (selected.filter(x => x !== cat).length ? selected.filter(x => x !== cat) : ['All']) : [...selected.filter(x => x !== 'All'), cat]));
+  const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
+  const filtered = useMemo(() => creators
+    .filter(creator => (selected.includes('All') || selected.includes(creator.category))
+      && (`${creator.name} ${creator.topic} ${creator.category}`).toLowerCase().includes(query.toLowerCase()))
+    .sort((first, second) => {
+      const firstCount = Number.isFinite(first.subscriberCount) ? first.subscriberCount : null;
+      const secondCount = Number.isFinite(second.subscriberCount) ? second.subscriberCount : null;
+      if (firstCount == null && secondCount == null) return first.name.localeCompare(second.name);
+      if (firstCount == null) return 1;
+      if (secondCount == null) return -1;
+      return secondCount - firstCount;
+    }), [creators, query, selected]);
+  const toggle = category => setSelected(category === 'All'
+    ? ['All']
+    : (selected.includes(category)
+      ? (selected.filter(item => item !== category).length ? selected.filter(item => item !== category) : ['All'])
+      : [...selected.filter(item => item !== 'All'), category]));
 
   useEffect(() => {
     let active = true;
@@ -30,7 +44,10 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
         setPeopleState({ loading: false, people: [], statuses: {}, error: 'People search is temporarily unavailable. Please try again later.' });
         return;
       }
-      const statuses = Object.fromEntries((connectionsResult.data || []).map(connection => [connection.user_id, connection.direction === 'connected' ? 'connected' : connection.direction === 'sent' ? 'request_sent' : 'request_received']));
+      const statuses = Object.fromEntries((connectionsResult.data || []).map(connection => [
+        connection.user_id,
+        connection.direction === 'connected' ? 'connected' : connection.direction === 'sent' ? 'request_sent' : 'request_received'
+      ]));
       setPeopleState({ loading: false, people: peopleResult.data || [], statuses, error: '' });
     }).catch(() => {
       if (active) setPeopleState({ loading: false, people: [], statuses: {}, error: 'People search is temporarily unavailable. Please try again later.' });
@@ -62,29 +79,20 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       ? 'Enter at least 2 characters to search usernames.'
       : '';
 
-  return <main className="page discover-page"><div className="page-heading"><span className="kicker">DISCOVER</span><h1>{searchType === 'creators' ? 'Find your next favorite creator' : 'Find people you know'}</h1><p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p></div>
+  return <main className="page discover-page">
+    <div className="page-heading">
+      <span className="kicker">DISCOVER</span>
+      <h1>{searchType === 'creators' ? 'Find your next favorite creator' : 'Find people you know'}</h1>
+      <p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p>
+    </div>
     <SearchBox value={query} setValue={setQuery} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
     <div className="discover-search-tabs" role="tablist" aria-label="Search type">
       <button type="button" role="tab" aria-selected={searchType === 'creators'} className={searchType === 'creators' ? 'active' : ''} onClick={() => setSearchType('creators')}><Search size={16}/> Creators</button>
       <button type="button" role="tab" aria-selected={searchType === 'people'} className={searchType === 'people' ? 'active' : ''} onClick={() => setSearchType('people')}><UsersRound size={16}/> People</button>
-  const filtered = useMemo(() => creators
-    .filter(c => (selected.includes('All') || selected.includes(c.category)) && (`${c.name} ${c.topic} ${c.category}`).toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => {
-      const aCount = Number.isFinite(a.subscriberCount) ? a.subscriberCount : null;
-      const bCount = Number.isFinite(b.subscriberCount) ? b.subscriberCount : null;
-      if (aCount == null && bCount == null) return a.name.localeCompare(b.name);
-      if (aCount == null) return 1;
-      if (bCount == null) return -1;
-      return bCount - aCount;
-    }), [creators, query, selected]);
-  const toggle = cat => setSelected(cat === 'All' ? ['All'] : (selected.includes(cat) ? (selected.filter(x => x !== cat).length ? selected.filter(x => x !== cat) : ['All']) : [...selected.filter(x => x !== 'All'), cat]));
-  return <main className="page"><div className="page-heading"><span className="kicker">DISCOVER</span><h1>Find your next favorite creator</h1><p>Explore honest community ratings across every kind of content.</p></div>
-    <SearchBox value={query} setValue={setQuery} />
-    <div className="browse-layout"><aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div>{categories.map(cat => <label key={cat}><input type="checkbox" checked={selected.includes(cat)} onChange={() => toggle(cat)} /><span>{cat}</span><small>{cat === 'All' ? creators.length : creators.filter(c => c.category === cat).length}</small></label>)}</aside>
-      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><span>Most subscribers first</span></div>{filtered.length ? filtered.map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
     </div>
-    {searchType === 'creators' ? <div className="browse-layout"><aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div>{categories.map(cat => <label key={cat}><input type="checkbox" checked={selected.includes(cat)} onChange={() => toggle(cat)} /><span>{cat}</span><small>{cat === 'All' ? creators.length : creators.filter(c => c.category === cat).length}</small></label>)}</aside>
-      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><span>Highest rated first</span></div>{filtered.length ? [...filtered].sort((a,b) => b.score-a.score).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
+    {searchType === 'creators' ? <div className="browse-layout">
+      <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div>{categories.map(category => <label key={category}><input type="checkbox" checked={selected.includes(category)} onChange={() => toggle(category)} /><span>{category}</span><small>{category === 'All' ? creators.length : creators.filter(creator => creator.category === category).length}</small></label>)}</aside>
+      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><span>Most subscribers first</span></div>{filtered.length ? filtered.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
     </div> : <section className="people-results" aria-live="polite">
       {peopleDescription ? <div className="empty"><UserRound size={36}/><h3>{user ? 'Search for a username' : 'Log in to find people'}</h3><p>{peopleDescription}</p>{!user&&<button className="primary" onClick={() => navigate('login')}>Log in</button>}</div>
         : peopleState.loading ? <p className="people-search-status" role="status">Searching people…</p>
