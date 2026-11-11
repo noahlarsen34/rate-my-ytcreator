@@ -232,11 +232,11 @@ function App() {
     setProfileReady(false);
     setProfileError('');
     let active = true;
-    supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url, reviews_public, following_public').eq('user_id', userId).maybeSingle().then(async result => {
+    supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url, reviews_public, following_public, people_searchable').eq('user_id', userId).maybeSingle().then(async result => {
       let { data, error } = result;
       if (error) {
         const fallback = await supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').eq('user_id', userId).maybeSingle();
-        if (!fallback.error) data = fallback.data ? { ...fallback.data, reviews_public: true, following_public: false } : null;
+        if (!fallback.error) data = fallback.data ? { ...fallback.data, reviews_public: true, following_public: false, people_searchable: false } : null;
         else error = fallback.error;
       }
       if (!active || requestId !== profileRequest.current) return;
@@ -546,7 +546,7 @@ function App() {
   return <>
     {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture}/>}
     {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} creatorsLoading={creatorsLoading}/>}
-    {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery} creators={appCreators}/>}
+    {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user}/>}
     {page==='profile'&&(creator?<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>:<main className="page"><div className="empty"><h3>Creator not found</h3><p>There are no creators to show yet.</p><button className="secondary" onClick={() => navigate('creators')}>Discover creators</button></div></main>)}
     {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>}
     {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>}
@@ -554,7 +554,7 @@ function App() {
     {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>}
     {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile} creators={appCreators} followingIds={followingIds}/>}
     {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged} onAvatarUpload={uploadAvatar} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} avatarUploading={avatarUploading} avatarError={avatarError} onCreatorsChanged={() => setCreatorRefresh(value => value + 1)}/>}
-    {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected}/>}
+    {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected} user={session?.user}/>}
     {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview} creators={appCreators}/>}
     {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}
   </>;

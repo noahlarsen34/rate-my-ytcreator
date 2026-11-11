@@ -30,7 +30,8 @@ This approach fits our team as we want enough control to be able to iterate on t
 - Supabase email/password and Google authentication with persistent sessions
 - Required profile onboarding backed by the private `public.users` table
 - User dashboard and editable account settings
-- Public user profiles with controls for showing reviews and followed creators
+- Public user profiles with controls for showing reviews and creator subscriptions
+- Opt-in People search, connection requests, and creator-subscription sharing between connected accounts
 - Issue-reporting modal
 - Responsive desktop and mobile layouts
 
@@ -63,7 +64,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 
 Restart npm run dev after adding or changing these values. Do not commit .env.local; it is intentionally ignored by Git.
 
-Apply the migration in `supabase/migrations/20261110010000_public_user_profiles.sql` to the Supabase project before using public profiles and profile visibility settings.
+Apply the migrations in `supabase/migrations/20261110010000_public_user_profiles.sql` and `supabase/migrations/20261111010000_user_connections.sql` to the Supabase project before using public profiles, People search, connection requests, and profile visibility settings.
 
 # Create an account
 Create an account to submit reviews and like existing reviews.
