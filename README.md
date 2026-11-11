@@ -4,7 +4,7 @@ A responsive React prototype for discovering, evaluating, and rating content cre
 
 # ERD
 
-![1793834974501](image/README/1793834974501.png)
+![Updated database schema](image/README/updated-schema.png)
 
 # Tech Stack Architecture Diagram
 
@@ -67,12 +67,13 @@ Restart npm run dev after adding or changing these values. Do not commit .env.lo
 Apply the migrations in `supabase/migrations/20261110010000_public_user_profiles.sql` and `supabase/migrations/20261111010000_user_connections.sql` to the Supabase project before using public profiles, People search, connection requests, and profile visibility settings.
 
 # Create an account
+
 Create an account to submit reviews and like existing reviews.
+
 1. Click Sign up.
 2. Sign up with Google, or fill in the required fields below the Google sign-in button.
 3. Click Create account.
 4. Confirm your email address.
-
 
 # Vertical Slice - Review Button
 
@@ -86,7 +87,9 @@ To test the working review flow, make sure Supabase is configured as described a
 6. Return to the creator’s profile. Your submitted review should appear in the review list.
 
 # Vertical Slice - Voting on a Review
+
 To test the working review voting flow, make sure Supabase is configured as described above and the `review_votes` setup in `supabase/review-votes.sql` has been applied, then:
+
 1. Click Log in and sign in with a registered account.
 2. Open a creator’s profile and find a review in the Recent reviews section.
 3. Click the thumbs-up or thumbs-down button to vote on the review.
@@ -95,7 +98,9 @@ To test the working review voting flow, make sure Supabase is configured as desc
 6. Refresh the page. Your vote and the vote counts should remain saved.
 
 # Vertical Slice - Editing an Account
+
 To test the working account editing flow, make sure Supabase is configured as described above and sign in with an account, then:
+
 1. Open your dashboard.
 2. Click the Settings button to open Account settings.
 3. Click Edit profile.
