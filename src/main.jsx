@@ -11,6 +11,7 @@ import { AccountSignIn } from './pages/AccountSignIn';
 import { CompleteProfile } from './pages/CompleteProfile';
 import { Dashboard } from './pages/Dashboard';
 import { AccountSettings } from './pages/AccountSettings';
+import { UserProfile } from './pages/UserProfile';
 import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
 
@@ -27,7 +28,7 @@ const cleanYouTubeDescription = value => {
   if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
-const returnablePages = new Set(['home', 'creators', 'profile', 'privacy', 'terms', 'dashboard', 'settings', 'rate']);
+const returnablePages = new Set(['home', 'creators', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'settings', 'rate']);
 const savedPageDestination = () => {
   try {
     const destination = JSON.parse(window.localStorage.getItem('lastPageDestination'));
@@ -232,7 +233,13 @@ function App() {
     setProfileReady(false);
     setProfileError('');
     let active = true;
-    supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').eq('user_id', userId).maybeSingle().then(({ data, error }) => {
+    supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url, reviews_public, following_public').eq('user_id', userId).maybeSingle().then(async result => {
+      let { data, error } = result;
+      if (error) {
+        const fallback = await supabase.from('users').select('user_id, first_name, last_name, birthdate, phone_number, email, gender, username, avatar_url').eq('user_id', userId).maybeSingle();
+        if (!fallback.error) data = fallback.data ? { ...fallback.data, reviews_public: true, following_public: false } : null;
+        else error = fallback.error;
+      }
       if (!active || requestId !== profileRequest.current) return;
       setProfile(error ? null : data);
       setProfileError(error ? error.message || 'Your profile could not be loaded.' : '');
@@ -295,13 +302,29 @@ function App() {
   }, [authReady, page, selected, selectedReviewId, session]);
 
   useEffect(() => {
-    if (!authReady || !profileReady || !session?.user || isProfileComplete(profile) || ['complete-profile', 'login', 'signup'].includes(page)) return;
+    if (!authReady || !profileReady || profileError || !session?.user || isProfileComplete(profile) || ['complete-profile', 'login', 'signup', 'settings'].includes(page)) return;
     const destination = { page, id: selected, reviewId: selectedReviewId };
     window.sessionStorage.setItem('profileReturnTo', JSON.stringify(destination));
     setPage('complete-profile');
     window.history.replaceState({ rmcPage: 'complete-profile', selected: null, reviewId: null }, document.title, pathForPage('complete-profile'));
     window.scrollTo(0, 0);
-  }, [authReady, page, profile, profileReady, selected, selectedReviewId, session?.user]);
+  }, [authReady, page, profile, profileError, profileReady, selected, selectedReviewId, session?.user]);
+
+  useEffect(() => {
+    if (!authReady || !profileReady || profileError || !session?.user || page !== 'complete-profile' || !isProfileComplete(profile)) return;
+    let destination = { page: 'dashboard', id: null, reviewId: null };
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem('profileReturnTo'));
+      if (saved && returnablePages.has(saved.page)) destination = { page: saved.page, id: saved.id || null, reviewId: saved.reviewId || null };
+    } catch {
+      // Use the dashboard if the saved destination is missing or malformed.
+    }
+    window.sessionStorage.removeItem('profileReturnTo');
+    setSelected(destination.id);
+    setSelectedReviewId(destination.reviewId);
+    setPage(destination.page);
+    window.history.replaceState({ rmcPage: destination.page, selected: destination.id, reviewId: destination.reviewId }, document.title, pathForPage(destination.page, destination.id));
+  }, [authReady, page, profile, profileError, profileReady, session?.user]);
 
   const finishProfile = nextProfile => {
     handleProfileChanged(nextProfile);
@@ -360,9 +383,19 @@ function App() {
       const databaseCreators = creatorsResult.data.map(row => creatorFromDatabase(row, typeNames));
       const creatorByDatabaseId = new Map(databaseCreators.map(creator => [String(creator.databaseId), creator]));
       const idMap = Object.fromEntries(databaseCreators.map(creator => [creator.id, creator.databaseId]));
+      const reviewerIds = [...new Set(reviewsResult.data.map(review => review.user_id).filter(Boolean))];
+      let reviewerProfiles = new Map();
+      if (reviewerIds.length) {
+        const { data: reviewerRows, error: reviewerError } = await supabase.rpc('get_public_review_authors', { p_user_ids: reviewerIds });
+        if (reviewerError) console.error('Review author profiles could not be loaded:', reviewerError.message);
+        else reviewerProfiles = new Map((reviewerRows || []).map(row => [row.user_id, row]));
+      }
       const loadedReviews = reviewsResult.data.map(review => {
         const matchedCreator = creatorByDatabaseId.get(String(review.creator_id));
-        return matchedCreator ? formatReview(review, matchedCreator.id, matchedCreator.name) : null;
+        if (!matchedCreator) return null;
+        const formatted = formatReview(review, matchedCreator.id, matchedCreator.name);
+        const author = reviewerProfiles.get(review.user_id);
+        return { ...formatted, authorUsername: author?.username || null, authorAvatarUrl: author?.avatar_url || null };
       }).filter(Boolean);
 
       setAppCreators(creatorsWithReviewSummaries(databaseCreators, loadedReviews));
@@ -457,7 +490,7 @@ function App() {
 
     if (error) throw new Error(error.message);
     const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
-    const insertedReview = formatReview(data, review.creatorId, creatorName);
+    const insertedReview = { ...formatReview(data, review.creatorId, creatorName), authorUsername: profile?.username || session.user.user_metadata?.username || null, authorAvatarUrl: profile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null };
     const nextReviews = [insertedReview, ...reviews];
     setReviews(nextReviews);
     setAppCreators(currentCreators => creatorsWithReviewSummaries(currentCreators, nextReviews));
@@ -468,6 +501,7 @@ function App() {
     let historyPage = next;
     let historyId = id;
     let historyReviewId = reviewId;
+    const returnTo = next === 'user-profile' ? { page, id: selected || null, reviewId: selectedReviewId || null } : null;
     if (['login', 'signup'].includes(next) && returnablePages.has(page)) {
       const destination = { page, id: selected || null, reviewId: selectedReviewId || null };
       rememberPageDestination(destination);
@@ -484,7 +518,7 @@ function App() {
       historyPage = 'login';
       historyId = null;
       historyReviewId = null;
-    } else if (protectedPages.has(next) && next !== 'complete-profile' && profileReady && !isProfileComplete(profile)) {
+    } else if (protectedPages.has(next) && !['complete-profile', 'settings'].includes(next) && profileReady && !profileError && !isProfileComplete(profile)) {
       window.sessionStorage.setItem('profileReturnTo', JSON.stringify({ page: next, id, reviewId }));
       setPage('complete-profile');
       historyPage = 'complete-profile';
@@ -501,7 +535,7 @@ function App() {
     }
     const nextPath = pathForPage(historyPage, historyId);
     setSelectedReviewId(historyReviewId);
-    window.history.pushState({ rmcPage: historyPage, selected: historyId, reviewId: historyReviewId }, '', nextPath);
+    window.history.pushState({ rmcPage: historyPage, selected: historyId, reviewId: historyReviewId, ...(returnTo ? { returnTo } : {}) }, '', nextPath);
     window.scrollTo(0,0);
   };
   const creator=appCreators.find(c=>c.id===selected);
@@ -521,6 +555,7 @@ function App() {
     {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>}
     {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile} creators={appCreators} followingIds={followingIds}/>}
     {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged} onAvatarUpload={uploadAvatar} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} avatarUploading={avatarUploading} avatarError={avatarError} onCreatorsChanged={() => setCreatorRefresh(value => value + 1)}/>}
+    {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected}/>}
     {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview} creators={appCreators}/>}
     {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}
   </>;
