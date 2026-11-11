@@ -44,3 +44,5 @@
 .empty-reviews{padding:24px 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center}.empty-reviews p{margin:0;color:#a1a1a8;font-size:14px}
 .dash-stats>div{align-items:center}.dash-stats svg{grid-row:1/3;align-self:center}.dash-stats strong{grid-row:1;align-self:center}.dash-stats span{grid-column:2;grid-row:2}
 .dashboard .dash-head .icon-button{display:grid;place-items:center}
+
+.creator-videos{margin-top:18px}.creator-videos h2{margin:0 0 16px}.creator-videos-frame{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:10px;background:#0c0c0e}.creator-videos-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
