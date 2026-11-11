@@ -58,7 +58,7 @@ export function AccountSettings({ navigate, user, session, profile, onProfileCha
     }
     invokeYouTube({ action: 'sync', providerToken, providerRefreshToken: session?.provider_refresh_token || null }).then(data => {
       applyYouTubeStatus(data);
-      setYoutube(current => ({ ...current, unmatchedCreators: Number(data.unmatchedCreators || 0), message: `YouTube connected. Matched ${data.matchedCreators} of ${data.totalSubscriptions} subscriptions and refreshed subscriber counts for ${Number(data.refreshedCreatorStats || 0)} creators.` }));
+      setYoutube(current => ({ ...current, unmatchedCreators: Number(data.unmatchedCreators || 0), message: `YouTube connected. Matched ${data.matchedCreators} of ${data.totalSubscriptions} subscriptions. Subscriber counts updated for ${Number(data.updatedCreatorStats || 0)} creators; ${Number(data.unchangedCreatorStats || 0)} were already current${Number(data.unavailableCreatorStats || 0) ? `; counts unavailable for ${Number(data.unavailableCreatorStats)} creators` : ''}.` }));
     }).catch(syncError => setYoutube(current => ({ ...current, working: false, message: '', error: syncError.message }))).finally(() => window.history.replaceState({}, document.title, window.location.pathname));
   }, [session?.provider_refresh_token, session?.provider_token]);
 
@@ -71,7 +71,7 @@ export function AccountSettings({ navigate, user, session, profile, onProfileCha
     setYoutube(current => ({ ...current, working: true, message: '', error: '' }));
     try {
       const data = await invokeYouTube({ action: 'sync' }); applyYouTubeStatus(data);
-      setYoutube(current => ({ ...current, unmatchedCreators: Number(data.unmatchedCreators || 0), message: `Sync complete. Matched ${data.matchedCreators} of ${data.totalSubscriptions} subscriptions and refreshed subscriber counts for ${Number(data.refreshedCreatorStats || 0)} creators.` }));
+      setYoutube(current => ({ ...current, unmatchedCreators: Number(data.unmatchedCreators || 0), message: `Sync complete. Matched ${data.matchedCreators} of ${data.totalSubscriptions} subscriptions. Subscriber counts updated for ${Number(data.updatedCreatorStats || 0)} creators; ${Number(data.unchangedCreatorStats || 0)} were already current${Number(data.unavailableCreatorStats || 0) ? `; counts unavailable for ${Number(data.unavailableCreatorStats)} creators` : ''}.` }));
     } catch (syncError) { setYoutube(current => ({ ...current, working: false, error: syncError.message })); }
   };
   const disconnectYouTube = async () => {

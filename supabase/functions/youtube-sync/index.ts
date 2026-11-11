@@ -112,12 +112,12 @@ async function creatorRowsForChannels(admin: any, channelIds: string[]) {
 
 // deno-lint-ignore no-explicit-any
 async function refreshImportedCreatorStats(admin: any, accessToken: string) {
-  const creators: Array<{ creator_id: string; youtube_channel_id: string }> = [];
+  const creators: Array<{ creator_id: string; youtube_channel_id: string; subscriber_count: number | string | null }> = [];
   let offset = 0;
   const pageSize = 500;
   while (true) {
     const { data, error } = await admin.from('content_creators')
-      .select('creator_id, youtube_channel_id')
+      .select('creator_id, youtube_channel_id, subscriber_count')
       .not('youtube_channel_id', 'is', null)
       .range(offset, offset + pageSize - 1);
     if (error) throw error;
@@ -128,17 +128,27 @@ async function refreshImportedCreatorStats(admin: any, accessToken: string) {
 
   const channels = await fetchChannelDetails(creators.map(creator => creator.youtube_channel_id), accessToken);
   const channelById = new Map(channels.map(channel => [channel.channelId, channel]));
-  let refreshed = 0;
+  let updated = 0;
+  let unchanged = 0;
+  let unavailable = 0;
   for (const creator of creators) {
     const channel = channelById.get(creator.youtube_channel_id);
-    if (!channel) continue;
+    if (!channel || channel.subscriberCount === null) {
+      unavailable += 1;
+      continue;
+    }
+    const savedCount = creator.subscriber_count === null ? null : Number(creator.subscriber_count);
+    if (savedCount === channel.subscriberCount) {
+      unchanged += 1;
+      continue;
+    }
     const { error } = await admin.from('content_creators').update({
       subscriber_count: channel.subscriberCount,
     }).eq('creator_id', creator.creator_id);
     if (error) throw error;
-    refreshed += 1;
+    updated += 1;
   }
-  return refreshed;
+  return { updated, unchanged, unavailable };
 }
 
 Deno.serve(async request => {
@@ -300,9 +310,9 @@ Deno.serve(async request => {
       const { error } = await admin.from('creator_follows').upsert(follows, { onConflict: 'user_id,creator_id,source', ignoreDuplicates: true }); if (error) throw error;
     }
     const syncedAt = new Date().toISOString();
-    const refreshedCreatorStats = await refreshImportedCreatorStats(admin, accessToken);
+    const creatorStats = await refreshImportedCreatorStats(admin, accessToken);
     const { error: syncError } = await admin.from('youtube_connections').update({ last_synced_at: syncedAt, updated_at: syncedAt }).eq('user_id', userId); if (syncError) throw syncError;
-    return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length, refreshedCreatorStats });
+    return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length, updatedCreatorStats: creatorStats.updated, unchangedCreatorStats: creatorStats.unchanged, unavailableCreatorStats: creatorStats.unavailable });
   } catch (error) {
     const message = errorMessage(error);
     console.error('youtube-sync failed:', message, error);
