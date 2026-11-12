@@ -6,6 +6,14 @@ A responsive React prototype for discovering, evaluating, and rating content cre
 
 ![Updated database schema](image/README/updated-schema.png)
 
+## Level 0
+
+![Level 0 sprint planning diagram](image/README/Sprint%20Retrospective%204-10.png)
+
+## Level 1
+
+![Level 1 sprint planning diagram](image/README/Sprint%20Retrospective%204-10%20(1).png)
+
 # Tech Stack Architecture Diagram
 
 ![1793834951624](image/README/1793834951624.png)
