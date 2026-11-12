@@ -74,8 +74,8 @@ const creatorFromDatabase = (row, typeNames) => {
     topic: typeNames.get(String(row.type_id)) || 'YouTube creator',
     tagline: 'New to Rate My Creator',
     description: cleanYouTubeDescription(row.creator_description || row.description),
-    profanity: 1,
-    substance: 1,
+    profanity: 0,
+    substance: 0,
     ai: 'Not enough data',
     ...aiSummary,
     ratingBreakdown: Array(10).fill(0)
@@ -114,8 +114,8 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
         ...creator,
         score: 0,
         reviews: 0,
-        profanity: 1,
-        substance: 1,
+        profanity: 0,
+        substance: 0,
         audience: 'Community rating pending',
         ai: 'Not enough data',
         ratingBreakdown: Array(10).fill(0)

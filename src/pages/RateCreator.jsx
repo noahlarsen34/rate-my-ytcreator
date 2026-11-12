@@ -12,7 +12,7 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
   const [wordCount, setWordCount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [values, setValues] = useState({ profanity: '1', substance: '1' });
+  const [values, setValues] = useState({ profanity: '0', substance: '0' });
   const creatorSearchRef = useRef(null);
   const filteredCreators = useMemo(() => {
     const search = creatorQuery.trim().toLowerCase();
@@ -167,9 +167,9 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
       <section className="panel">
         <h2>Content details</h2>
         <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label>
-        <RangeField label="Profanity" low="None" high="Very frequent" value={values.profanity} set={value => setValues(current => ({ ...current, profanity: value }))}/>
+        <RangeField label="Profanity" low="None" high="Very frequent" min="0" value={values.profanity} set={value => setValues(current => ({ ...current, profanity: value }))}/>
         <div className="rating-range-field">
-          <RangeField label="How often does the content show or discuss alcohol, drugs, or vaping?" low="Never" high="Very often" value={values.substance} set={value => setValues(current => ({ ...current, substance: value }))}/>
+          <RangeField label="How often does the content show or discuss alcohol, drugs, or vaping?" low="Never" high="Very often" min="0" value={values.substance} set={value => setValues(current => ({ ...current, substance: value }))}/>
           <p className="field-help">Count videos that show or talk about these substances.</p>
         </div>
         <label>Does the creator use AI?<select name="usesAi" required defaultValue=""><option value="" disabled>Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>
