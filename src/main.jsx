@@ -47,6 +47,11 @@ const rememberPageDestination = destination => {
   } catch { /* Storage may be unavailable in private browsing. */ }
 };
 const creatorFromDatabase = (row, typeNames) => {
+  const aiSummary = {
+    aiReviewSummary: row.ai_review_summary || '',
+    aiSummaryReviewCount: Number(row.ai_summary_review_count || 0),
+    aiSummaryUpdatedAt: row.ai_summary_updated_at || null
+  };
   const name = [row.first_name, row.last_name].filter(Boolean).join(' ').trim() || 'YouTube creator';
   return {
     id: `db-${row.creator_id}`,
@@ -72,6 +77,7 @@ const creatorFromDatabase = (row, typeNames) => {
     profanity: 1,
     substance: 1,
     ai: 'Not enough data',
+    ...aiSummary,
     ratingBreakdown: Array(10).fill(0)
   };
 };
@@ -495,6 +501,19 @@ function App() {
     const nextReviews = [insertedReview, ...reviews];
     setReviews(nextReviews);
     setAppCreators(currentCreators => creatorsWithReviewSummaries(currentCreators, nextReviews));
+    // The review is already saved, so summary generation runs independently.
+    // A temporary AI failure must never make a successful review look unsuccessful.
+    void supabase.functions.invoke('creator-ai', {
+      body: { action: 'summarize_reviews', creatorId: databaseCreatorId }
+    }).then(({ data: summaryData, error: summaryError }) => {
+      if (summaryError || summaryData?.error) {
+        console.error('AI review summary could not be refreshed:', summaryData?.error || summaryError?.message);
+        return;
+      }
+      setCreatorRefresh(value => value + 1);
+    }).catch(summaryError => {
+      console.error('AI review summary could not be refreshed:', summaryError);
+    });
     return insertedReview;
   };
 
