@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export function DiscoverCreators({ navigate, query, setQuery, creators, user }) {
   const [selected, setSelected] = useState(['All']);
+  const [sortBy, setSortBy] = useState('rating-high');
   const [searchType, setSearchType] = useState('creators');
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
@@ -14,13 +15,15 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
     .filter(creator => (selected.includes('All') || selected.includes(creator.category))
       && (`${creator.name} ${creator.topic} ${creator.category}`).toLowerCase().includes(query.toLowerCase()))
     .sort((first, second) => {
+      if (sortBy === 'rating-high') return second.score - first.score;
+      if (sortBy === 'rating-low') return first.score - second.score;
       const firstCount = Number.isFinite(first.subscriberCount) ? first.subscriberCount : null;
       const secondCount = Number.isFinite(second.subscriberCount) ? second.subscriberCount : null;
       if (firstCount == null && secondCount == null) return first.name.localeCompare(second.name);
       if (firstCount == null) return 1;
       if (secondCount == null) return -1;
-      return secondCount - firstCount;
-    }), [creators, query, selected]);
+      return sortBy === 'subscribers-high' ? secondCount - firstCount : firstCount - secondCount;
+    }), [creators, query, selected, sortBy]);
   const toggle = category => setSelected(category === 'All'
     ? ['All']
     : (selected.includes(category)
@@ -92,7 +95,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
     </div>
     {searchType === 'creators' ? <div className="browse-layout">
       <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div>{categories.map(category => <label key={category}><input type="checkbox" checked={selected.includes(category)} onChange={() => toggle(category)} /><span>{category}</span><small>{category === 'All' ? creators.length : creators.filter(creator => creator.category === category).length}</small></label>)}</aside>
-      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><span>Most subscribers first</span></div>{filtered.length ? filtered.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
+      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><label>Sort by <select value={sortBy} onChange={event => setSortBy(event.target.value)} aria-label="Sort creators"><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label></div>{filtered.length ? filtered.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
     </div> : <section className="people-results" aria-live="polite">
       {peopleDescription ? <div className="empty"><UserRound size={36}/><h3>{user ? 'Search for a username' : 'Log in to find people'}</h3><p>{peopleDescription}</p>{!user&&<button className="primary" onClick={() => navigate('login')}>Log in</button>}</div>
         : peopleState.loading ? <p className="people-search-status" role="status">Searching people…</p>
