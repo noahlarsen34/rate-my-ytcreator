@@ -16,6 +16,43 @@
   margin-top: 18px;
 }
 
+.ai-review-summary {
+  border-color: #3d303f;
+  background: linear-gradient(145deg, #1d181f, #17171a);
+}
+
+.ai-summary-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 16px;
+}
+
+.ai-summary-heading > svg {
+  color: #d58cff;
+}
+
+.ai-summary-heading h2 {
+  margin: 0;
+}
+
+.ai-summary-heading span,
+.ai-review-summary small {
+  color: #7f7f88;
+  font-size: 11px;
+}
+
+.ai-review-summary > p {
+  color: #d1d1d5;
+  line-height: 1.65;
+  margin: 0 0 12px;
+}
+
+.ai-review-summary > p.ai-summary-empty {
+  color: #898992;
+  margin-bottom: 0;
+}
+
 .review-status {
   color: #898992;
   font-size: 14px;
