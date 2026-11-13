@@ -7,14 +7,26 @@
     <meta name="description" content="Discover and rate the creators shaping your feed." />
     <meta name="google-site-verification" content="wqjaEG9OjKwQBrj51YTt7sIR-wRkO8rv_7KW4kA_Jgc" />
     <title>Rate My Creator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/reviews.css" />
+    <link rel="stylesheet" href="/src/auth.css" />
+    <link rel="stylesheet" href="/src/follows.css" />
+    <link rel="stylesheet" href="/src/review-form.css" />
+    <style>
+      html, body { min-width: 320px; min-height: 100%; margin: 0; background: #0c0c0e; color: #f7f7f8; font-family: 'DM Sans', Arial, sans-serif; }
+      .boot-screen { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 14px; color: #aaaab2; }
+      .boot-screen .brand-mark { width: 42px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: #ff3d43; color: white; font-size: 17px; }
+      .boot-screen p { margin: 0; font-size: 14px; }
+    </style>
   </head>
   <body>
     <div id="root">
-      <main>
-        <h1>Rate My Creator</h1>
-        <p>Rate My Creator is a community review service that helps people discover and evaluate YouTube creators before deciding what to watch.</p>
-        <p>Public creator ratings can be browsed without logging in. Users may optionally connect Google and YouTube to match their subscriptions with creators and community ratings available on Rate My Creator.</p>
-        <nav><a href="/privacy">Rate My Creator Privacy Policy</a> · <a href="/terms">Terms of Service</a></nav>
+      <main class="boot-screen" aria-live="polite">
+        <span class="brand-mark" aria-hidden="true">&#9654;</span>
+        <p>Loading Rate My Creator...</p>
       </main>
     </div>
     <script type="module" src="/src/main.jsx"></script>

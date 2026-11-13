@@ -1,22 +1,13 @@
-import { creators } from './data/creators';
-
-export function creatorIdFromChannelLink(channelLink) {
-  const handle = channelLink?.match(/@([^/?#]+)/)?.[1]?.toLowerCase();
-  return creators.find(creator => creator.handle.slice(1).toLowerCase() === handle)?.id;
-}
-
 export function formatReview(review, creatorId, creatorName) {
-  const creator = creators.find(item => item.id === creatorId);
-
   return {
     id: review.review_id,
     userId: review.user_id ?? null,
     creatorId,
     createdAt: review.created_at,
-    creator: creatorName ?? creator?.name ?? 'Unknown creator',
-    score: review.overall_rating,
-    profanity: review.profanity,
-    substance: review.substance_use,
+    creator: creatorName ?? 'Unknown creator',
+    score: Number(review.overall_rating),
+    profanity: Number(review.profanity),
+    substance: Number(review.substance_use),
     ageLevel: review.age_level,
     usesAi: review.uses_ai,
     text: review.review_text,
@@ -65,13 +56,14 @@ export function pageFromPathname() {
   if (path === '/signup') return 'signup';
   if (path === '/dashboard') return 'dashboard';
   if (path === '/settings') return 'settings';
+  if (path.startsWith('/users/')) return 'user-profile';
   if (path === '/rate') return 'rate';
   if (path === '/complete-profile') return 'complete-profile';
   return 'home';
 }
 
 export function selectedIdFromPathname() {
-  const match = window.location.pathname.match(/^\/creators\/([^/]+)\/?$/);
+  const match = window.location.pathname.match(/^\/(?:creators|users)\/([^/]+)\/?$/);
   if (!match) return null;
   try {
     return decodeURIComponent(match[1]);
@@ -83,6 +75,7 @@ export function selectedIdFromPathname() {
 export function pathForPage(page, id = null) {
   if (page === 'creators') return '/discover';
   if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
+  if (page === 'user-profile') return id ? `/users/${encodeURIComponent(id)}` : '/';
   if (page === 'privacy' || page === 'terms') return `/${page}`;
   if (['login', 'signup', 'dashboard', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
   return '/';
