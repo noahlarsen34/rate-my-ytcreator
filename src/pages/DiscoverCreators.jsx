@@ -3,6 +3,9 @@ import { Search, SlidersHorizontal, UserRound, UsersRound } from 'lucide-react';
 import { CreatorCard, SearchBox } from '../components/shared';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
+const matchesTopic = (creator, topic) => creator.category === topic
+  || `${creator.topic || ''} ${creator.name || ''}`.toLowerCase().includes(topic.toLowerCase());
+
 export function DiscoverCreators({ navigate, query, setQuery, creators, user }) {
   const [selected, setSelected] = useState(['All']);
   const [sortBy, setSortBy] = useState('rating-high');
@@ -10,9 +13,12 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
-  const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
+  const topics = useMemo(() => [...new Set([
+    ...creators.map(creator => creator.category),
+    'Gaming', 'Music', 'Vlog', 'Comedy', 'Educational'
+  ])], [creators]);
   const filtered = useMemo(() => creators
-    .filter(creator => (selected.includes('All') || selected.includes(creator.category))
+    .filter(creator => (selected.includes('All') || selected.some(topic => matchesTopic(creator, topic)))
       && (`${creator.name} ${creator.topic} ${creator.category}`).toLowerCase().includes(query.toLowerCase()))
     .sort((first, second) => {
       if (sortBy === 'rating-high') return second.score - first.score;
@@ -94,7 +100,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       <button type="button" role="tab" aria-selected={searchType === 'people'} className={searchType === 'people' ? 'active' : ''} onClick={() => setSearchType('people')}><UsersRound size={16}/> People</button>
     </div>
     {searchType === 'creators' ? <div className="browse-layout">
-      <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div>{categories.map(category => <label key={category}><input type="checkbox" checked={selected.includes(category)} onChange={() => toggle(category)} /><span>{category}</span><small>{category === 'All' ? creators.length : creators.filter(creator => creator.category === category).length}</small></label>)}</aside>
+      <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div><label><input type="checkbox" checked={selected.includes('All')} onChange={() => toggle('All')} /><span>All</span><small>{creators.length}</small></label>{topics.map(topic => <label key={topic}><input type="checkbox" checked={selected.includes(topic)} onChange={() => toggle(topic)} /><span>{topic}</span><small>{creators.filter(creator => matchesTopic(creator, topic)).length}</small></label>)}</aside>
       <section className="results"><div className="results-head"><b>{filtered.length} creators</b><label>Sort by <select value={sortBy} onChange={event => setSortBy(event.target.value)} aria-label="Sort creators"><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label></div>{filtered.length ? filtered.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
     </div> : <section className="people-results" aria-live="polite">
       {peopleDescription ? <div className="empty"><UserRound size={36}/><h3>{user ? 'Search for a username' : 'Log in to find people'}</h3><p>{peopleDescription}</p>{!user&&<button className="primary" onClick={() => navigate('login')}>Log in</button>}</div>
