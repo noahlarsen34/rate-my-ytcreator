@@ -5,6 +5,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export function DiscoverCreators({ navigate, query, setQuery, creators, user }) {
   const [selected, setSelected] = useState(['All']);
+  const [sortBy, setSortBy] = useState('rating-high');
   const [searchType, setSearchType] = useState('creators');
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
