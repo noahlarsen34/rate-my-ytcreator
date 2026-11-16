@@ -5,31 +5,11 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 export function DiscoverCreators({ navigate, query, setQuery, creators, user }) {
   const [selected, setSelected] = useState(['All']);
-  const [sortBy, setSortBy] = useState('rating-high');
-  const categories = useMemo(() => ['All', ...new Set(creators.map(c => c.category))], [creators]);
-  const filtered = useMemo(() => {
-    const matches = creators.filter(c => (selected.includes('All') || selected.includes(c.category)) && (`${c.name} ${c.topic} ${c.category}`).toLowerCase().includes(query.toLowerCase()));
-    const sorters = {
-      'rating-high': (a, b) => b.score - a.score,
-      'rating-low': (a, b) => a.score - b.score,
-      'subscribers-high': (a, b) => (b.subscriberCount ?? -1) - (a.subscriberCount ?? -1),
-      'subscribers-low': (a, b) => {
-        if (a.subscriberCount == null) return b.subscriberCount == null ? 0 : 1;
-        if (b.subscriberCount == null) return -1;
-        return a.subscriberCount - b.subscriberCount;
-      }
-    };
-    return matches.sort(sorters[sortBy]);
-  }, [creators, query, selected, sortBy]);
-  const toggle = cat => setSelected(cat === 'All' ? ['All'] : (selected.includes(cat) ? (selected.filter(x => x !== cat).length ? selected.filter(x => x !== cat) : ['All']) : [...selected.filter(x => x !== 'All'), cat]));
-  return <main className="page"><div className="page-heading"><span className="kicker">DISCOVER</span><h1>Find your next favorite creator</h1><p>Explore honest community ratings across every kind of content.</p></div>
-    <SearchBox value={query} setValue={setQuery} />
-    <div className="browse-layout"><aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div>{categories.map(cat => <label key={cat}><input type="checkbox" checked={selected.includes(cat)} onChange={() => toggle(cat)} /><span>{cat}</span><small>{cat === 'All' ? creators.length : creators.filter(c => c.category === cat).length}</small></label>)}</aside>
-      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><label>Sort by <select value={sortBy} onChange={event => setSortBy(event.target.value)} aria-label="Sort creators"><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label></div>{filtered.length ? filtered.map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
   const [searchType, setSearchType] = useState('creators');
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
   const filtered = useMemo(() => creators
     .filter(creator => (selected.includes('All') || selected.includes(creator.category))
@@ -42,6 +22,15 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       if (secondCount == null) return -1;
       return secondCount - firstCount;
     }), [creators, query, selected]);
+  const suggestions = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return [];
+    return creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 8);
+  }, [creators, query]);
+  const chooseCreator = creator => {
+    setQuery(creator.name);
+    setCreatorPickerOpen(false);
+  };
   const toggle = category => setSelected(category === 'All'
     ? ['All']
     : (selected.includes(category)
@@ -106,7 +95,14 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       <h1>{searchType === 'creators' ? 'Find your next favorite creator' : 'Find people you know'}</h1>
       <p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p>
     </div>
-    <SearchBox value={query} setValue={setQuery} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+    <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
+      <SearchBox value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); }} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+      {searchType === 'creators' && creatorPickerOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
+        {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => chooseCreator(creator)}>
+          <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
+        </button>)}
+      </div>}
+    </div>
     <div className="discover-search-tabs" role="tablist" aria-label="Search type">
       <button type="button" role="tab" aria-selected={searchType === 'creators'} className={searchType === 'creators' ? 'active' : ''} onClick={() => setSearchType('creators')}><Search size={16}/> Creators</button>
       <button type="button" role="tab" aria-selected={searchType === 'people'} className={searchType === 'people' ? 'active' : ''} onClick={() => setSearchType('people')}><UsersRound size={16}/> People</button>
