@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronRight, Search, Star } from 'lucide-react';
 import { RangeField } from '../components/shared';
 
-export function RateCreator({ navigate, selectedId, submitReview, creators }) {
+export function RateCreator({ navigate, selectedId, submitReview, creators, reviews = [], user }) {
   const selectedCreator = creators.find(creator => creator.id === selectedId);
   const [selectedCreatorId, setSelectedCreatorId] = useState(selectedCreator?.id || '');
   const [creatorQuery, setCreatorQuery] = useState(selectedCreator?.name || '');
@@ -18,6 +18,7 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
     const search = creatorQuery.trim().toLowerCase();
     return creators.filter(creator => !search || `${creator.name} ${creator.handle} ${creator.topic}`.toLowerCase().includes(search));
   }, [creatorQuery, creators]);
+  const existingReview = reviews.find(review => review.userId === user?.id && review.creatorId === selectedCreatorId);
 
   const submit = async event => {
     event.preventDefault();
@@ -25,6 +26,10 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
       setError('Search for and select a creator before submitting.');
       creatorSearchRef.current?.focus();
       setCreatorPickerOpen(true);
+      return;
+    }
+    if (existingReview) {
+      setError('You can only have one review per creator. Editing an existing review is not available yet.');
       return;
     }
     if (!overallRating) {
@@ -112,7 +117,12 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
         </div>
         {selectedCreatorId && <p className="selected-creator">Reviewing: <b>{creators.find(creator => creator.id === selectedCreatorId)?.name}</b></p>}
 
-        <div className="overall-rating" role="group" aria-label="Overall creator rating">
+        {existingReview && <div className="submit-error" role="alert">
+          <p>You can only have one review per creator. Editing an existing review is not available yet.</p>
+          <button type="button" className="secondary" onClick={() => navigate('profile', selectedCreatorId, existingReview.id)}>View your review</button>
+        </div>}
+
+        {!existingReview && <div className="overall-rating" role="group" aria-label="Overall creator rating">
           <div><h2>Your overall rating</h2><p>How would you rate this creator overall?</p></div>
           <div className="star-rating" onMouseLeave={() => setHoveredRating(0)}>
             {[1, 2, 3, 4, 5].map(star => {
@@ -143,10 +153,10 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
             })}
           </div>
           <span className="star-rating-value" aria-live="polite">{overallRating ? `${overallRating} out of 5 stars` : 'Select a rating'}</span>
-        </div>
+        </div>}
       </section>
 
-      <section className="panel">
+      {!existingReview && <section className="panel">
         <h2>Your review</h2>
         <label className="review-text-label"><span className="field-label">What should new viewers know?</span><span className="word-count">{wordCount}/150 words</span>
           <textarea name="review" required rows="6" placeholder="What stands out about this creator? Share a specific example or experience." onChange={event => {
@@ -162,9 +172,9 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
           <small>For example, repeated brand sponsorships or a consistent ideological perspective. Leave blank if nothing stands out.</small>
           <textarea name="bias" rows="3" placeholder="Share any patterns you have noticed (optional)" />
         </label>
-      </section>
+      </section>}
 
-      <section className="panel">
+      {!existingReview && <section className="panel">
         <h2>Content details</h2>
         <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label>
         <RangeField label="Profanity" low="None" high="Very frequent" min="0" value={values.profanity} set={value => setValues(current => ({ ...current, profanity: value }))}/>
@@ -173,10 +183,10 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
           <p className="field-help">Count videos that show or talk about these substances.</p>
         </div>
         <label>Does the creator use AI?<select name="usesAi" required defaultValue=""><option value="" disabled>Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>
-      </section>
+      </section>}
 
-      {error && <p className="submit-error" role="alert">{error}</p>}
-      <button className="primary submit-rating" disabled={submitting || creators.length === 0}>{submitting ? 'Submitting...' : <>Submit review <ChevronRight size={18}/></>}</button>
+      {!existingReview && error && <p className="submit-error" role="alert">{error}</p>}
+      {!existingReview && <button className="primary submit-rating" disabled={submitting || creators.length === 0}>{submitting ? 'Submitting...' : <>Submit review <ChevronRight size={18}/></>}</button>}
     </form>
   </main>;
 }
