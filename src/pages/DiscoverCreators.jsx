@@ -15,6 +15,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const [actionError, setActionError] = useState('');
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [currentPage, setCurrentPage] = useState(1);
   const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
   const topics = useMemo(() => [...new Set([
     ...creators.map(creator => creator.category),
@@ -32,7 +33,13 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       if (firstCount == null) return 1;
       if (secondCount == null) return -1;
       return secondCount - firstCount;
-    }), [creators, query, selected]);
+    }), [creators, query, selected, sortBy]);
+  const pageSize = 30;
+  const pageCount = Math.ceil(filtered.length / pageSize);
+  const visibleCreators = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageGroupStart = Math.floor((currentPage - 1) / 15) * 15 + 1;
+  const pageGroupEnd = Math.min(pageGroupStart + 14, pageCount);
+  useEffect(() => { setCurrentPage(1); }, [query, selected, sortBy]);
   const suggestions = useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return [];
@@ -141,7 +148,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
     </div>
     {searchType === 'creators' ? <div className="browse-layout">
       <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div><label><input type="checkbox" checked={selected.includes('All')} onChange={() => toggle('All')} /><span>All</span><small>{creators.length}</small></label>{topics.map(topic => <label key={topic}><input type="checkbox" checked={selected.includes(topic)} onChange={() => toggle(topic)} /><span>{topic}</span><small>{creators.filter(creator => matchesTopic(creator, topic)).length}</small></label>)}</aside>
-      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><label>Sort by <select value={sortBy} onChange={event => setSortBy(event.target.value)} aria-label="Sort creators"><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label></div>{filtered.length ? filtered.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
+      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><label>Sort by <select value={sortBy} onChange={event => setSortBy(event.target.value)} aria-label="Sort creators"><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label></div>{filtered.length ? <>{visibleCreators.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />)}{pageCount > 1 && <nav className="creator-pagination" aria-label="Creator result pages">{pageGroupStart > 1 && <button type="button" aria-label={`Previous page group, pages ${pageGroupStart - 15} to ${pageGroupStart - 1}`} onClick={() => { setCurrentPage(pageGroupStart - 1); document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>‹</button>}{Array.from({ length: pageGroupEnd - pageGroupStart + 1 }, (_, index) => pageGroupStart + index).map(page => <button type="button" key={page} className={page === currentPage ? 'active' : ''} aria-current={page === currentPage ? 'page' : undefined} onClick={() => { setCurrentPage(page); document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{page}</button>)}{pageGroupEnd < pageCount && <button type="button" aria-label={`Next page group, starting at page ${pageGroupEnd + 1}`} onClick={() => { setCurrentPage(pageGroupEnd + 1); document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{pageGroupEnd + 1}+</button>}</nav>}</> : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
     </div> : <section className="people-results" aria-live="polite">
       {peopleDescription ? <div className="empty"><UserRound size={36}/><h3>{user ? 'Search for a username' : 'Log in to find people'}</h3><p>{peopleDescription}</p>{!user&&<button className="primary" onClick={() => navigate('login')}>Log in</button>}</div>
         : peopleState.loading ? <p className="people-search-status" role="status">Searching people…</p>
