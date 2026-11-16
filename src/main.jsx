@@ -74,9 +74,10 @@ const creatorFromDatabase = (row, typeNames) => {
     topic: typeNames.get(String(row.type_id)) || 'YouTube creator',
     tagline: 'New to Rate My Creator',
     description: cleanYouTubeDescription(row.creator_description || row.description),
-    profanity: 0,
-    substance: 0,
+    profanity: null,
+    substance: null,
     ai: 'Not enough data',
+    syntheticReviews: 0,
     ...aiSummary,
     ratingBreakdown: Array(10).fill(0)
   };
@@ -91,15 +92,25 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
       total: 0,
       profanity: 0,
       substance: 0,
+      profanityCount: 0,
+      substanceCount: 0,
       count: 0,
+      syntheticCount: 0,
       ages: {},
       ai: {},
       scores: Array(10).fill(0)
     };
     current.total += score;
-    current.profanity += Number(review.profanity) || 0;
-    current.substance += Number(review.substance) || 0;
+    if (review.profanity !== null && Number.isFinite(Number(review.profanity))) {
+      current.profanity += Number(review.profanity);
+      current.profanityCount += 1;
+    }
+    if (review.substance !== null && Number.isFinite(Number(review.substance))) {
+      current.substance += Number(review.substance);
+      current.substanceCount += 1;
+    }
     current.count += 1;
+    if (review.reviewSource === 'synthetic_demo') current.syntheticCount += 1;
     if (review.ageLevel) current.ages[review.ageLevel] = (current.ages[review.ageLevel] || 0) + 1;
     if (review.usesAi && review.usesAi !== 'Unsure') current.ai[review.usesAi] = (current.ai[review.usesAi] || 0) + 1;
     current.scores[Math.round(score * 2) - 1] += 1;
@@ -114,8 +125,9 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
         ...creator,
         score: 0,
         reviews: 0,
-        profanity: 0,
-        substance: 0,
+        profanity: null,
+        substance: null,
+        syntheticReviews: 0,
         audience: 'Community rating pending',
         ai: 'Not enough data',
         ratingBreakdown: Array(10).fill(0)
@@ -125,8 +137,9 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
       ...creator,
       score: rating.total / rating.count,
       reviews: rating.count,
-      profanity: rating.profanity / rating.count,
-      substance: rating.substance / rating.count,
+      profanity: rating.profanityCount ? rating.profanity / rating.profanityCount : null,
+      substance: rating.substanceCount ? rating.substance / rating.substanceCount : null,
+      syntheticReviews: rating.syntheticCount,
       audience: mostCommon(rating.ages) || 'Not enough data',
       ai: mostCommon(rating.ai) || 'Not enough data',
       ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
@@ -374,7 +387,7 @@ function App() {
       setCreatorsLoading(true);
       const [creatorsResult, reviewsResult, typesResult] = await Promise.all([
         supabase.from('content_creators').select('*'),
-        supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
+        supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
         ,supabase.from('channel_types').select('type_id, type_name')
       ]);
 
@@ -506,7 +519,7 @@ function App() {
       review_text:review.reviewText,
       bias_text:review.biasText,
       uses_ai:review.usesAi
-    }).select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
+    }).select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at').single();
 
     if (error) throw new Error(error.message);
     const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
@@ -543,7 +556,7 @@ function App() {
       bias_text: review.biasText,
       uses_ai: review.usesAi
     }).eq('review_id', reviewId).eq('user_id', session.user.id)
-      .select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
+      .select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at').single();
     if (error) throw new Error('Your review could not be updated. Please try again.');
     const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
     const updatedReview = {

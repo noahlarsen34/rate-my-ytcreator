@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut
+  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -13,6 +13,7 @@ export function Stars({ score, small = false }) {
 }
 
 export function ReviewAuthor({ review, navigate, currentUserId }) {
+  if (review.reviewSource === 'synthetic_demo') return <span className="review-author synthetic"><span className="review-author-avatar"><Sparkles size={15}/></span><b>{review.seedAuthorName || 'Demo reviewer'}</b></span>;
   if (!review.userId) return <span className="review-author unavailable"><span className="review-author-avatar"><UserRound size={16}/></span><b>Community member</b></span>;
   const name = review.authorUsername || 'Community member';
   return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate(review.userId === currentUserId ? 'dashboard' : 'user-profile', ...(review.userId === currentUserId ? [] : [review.userId])); }} aria-label={review.userId === currentUserId ? 'View your dashboard' : `View ${name}'s profile`}>
