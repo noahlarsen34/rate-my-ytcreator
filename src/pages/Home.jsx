@@ -5,8 +5,6 @@ import { supabase } from '../lib/supabase';
 
 export function Home({ navigate, query, setQuery, creators, creatorsLoading, reviews, reviewsLoading, reviewsError, reviewVotesError }) {
   const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
-export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
-  const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null, followedCreators: null });
   const [homeQuery, setHomeQuery] = useState(query);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const suggestions = useMemo(() => {
