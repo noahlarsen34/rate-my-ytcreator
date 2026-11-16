@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Check, Eye, Settings, MessageSquareText, Bookmark, ThumbsUp, ChevronRight, UsersRound, X } from 'lucide-react';
+import { Check, Eye, Settings, MessageSquareText, Bookmark, ThumbsUp, ChevronRight, ChevronDown, ChevronUp, UsersRound, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Avatar, Stars } from '../components/shared';
 
 export function Dashboard({ navigate, reviews, reviewsLoading, reviewsError, user, profile, creators, followingIds }) {
+  const visibleSubscriptionLimit = 8;
   const following = creators.filter(creator => creator.databaseId && followingIds.has(String(creator.databaseId)));
   const displayName = profile?.first_name || profile?.username || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'there';
   const myReviews = reviews.filter(review => review.userId === user?.id);
   const [helpfulVotes, setHelpfulVotes] = useState(null);
+  const [showAllSubscriptions, setShowAllSubscriptions] = useState(false);
   const [connections, setConnections] = useState({ loading: true, items: [], error: '', workingId: null });
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function Dashboard({ navigate, reviews, reviewsLoading, reviewsError, use
     <div className="dash-stats"><div><MessageSquareText/><strong>{myReviews.length}</strong><span>Ratings written</span></div><div><Bookmark/><strong>{following.length}</strong><span>Creator subscriptions</span></div><div><ThumbsUp/><strong>{helpfulVotes === null ? '—' : helpfulVotes}</strong><span>Helpful votes</span></div></div>
     <div className="dashboard-grid">
       <section className="panel"><div className="panel-head"><h2>Your ratings</h2><button className="text-button" onClick={() => navigate('rate')}>Write a rating</button></div>{reviewsLoading ? <p className="dashboard-empty" role="status">Loading reviews…</p> : reviewsError ? <p className="dashboard-empty" role="alert">Reviews couldn’t be loaded.</p> : myReviews.length === 0 ? <div className="empty-reviews"><p>You have not reviewed any creators.</p><button className="primary" onClick={() => navigate('rate')}>Write a rating <ChevronRight size={18}/></button></div> : myReviews.map(r=><article className="review-row" key={r.id}><div><h3>{r.creator}</h3><Stars score={r.score} small/><span className="date">{r.date}</span><p>{r.text}</p></div><div className="review-row-actions"><button type="button" className="text-button" onClick={() => navigate('rate', r.creatorId, r.id)}>Edit</button><button type="button" className="icon-button" aria-label={'View review for ' + r.creator} onClick={() => navigate('profile', r.creatorId, r.id)}><ChevronRight aria-hidden="true"/></button></div></article>)}</section>
-      <aside className="panel"><div className="panel-head"><h2>Subscriptions</h2><span>{following.length}</span></div>{following.length ? following.map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>) : <p className="dashboard-empty">You have no creator subscriptions yet.</p>}</aside>
+      <aside className="panel"><div className="panel-head"><h2>Subscriptions</h2><span>{following.length}</span></div>{following.length ? <><div className={`dashboard-following-list${following.length > visibleSubscriptionLimit && !showAllSubscriptions ? ' is-collapsed' : ''}`}>{(showAllSubscriptions ? following : following.slice(0, visibleSubscriptionLimit)).map(c=><button className="follow-row" key={c.id} onClick={()=>navigate('profile',c.id)}><Avatar creator={c}/><span><b>{c.name}</b><small>{c.topic}</small></span><ChevronRight/></button>)}</div>{following.length > visibleSubscriptionLimit&&<button className="text-button subscriptions-toggle" aria-expanded={showAllSubscriptions} onClick={() => setShowAllSubscriptions(value => !value)}>{showAllSubscriptions ? <>Show less <ChevronUp size={16}/></> : <>Show all <ChevronDown size={16}/></>}</button>}</> : <p className="dashboard-empty">You have no creator subscriptions yet.</p>}</aside>
     </div>
     <section className="panel dashboard-connections">
       <div className="panel-head"><h2><UsersRound size={19}/> Connections</h2><button className="text-button" onClick={() => navigate('creators')}>Find people</button></div>
