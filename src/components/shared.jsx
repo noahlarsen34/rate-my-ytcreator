@@ -12,10 +12,10 @@ export function Stars({ score, small = false }) {
   return <span className={`stars ${small ? 'small' : ''}`}><Star fill="currentColor" /> <b>{score.toFixed(1)}</b></span>;
 }
 
-export function ReviewAuthor({ review, navigate }) {
+export function ReviewAuthor({ review, navigate, currentUserId }) {
   if (!review.userId) return <span className="review-author unavailable"><span className="review-author-avatar"><UserRound size={16}/></span><b>Community member</b></span>;
   const name = review.authorUsername || 'Community member';
-  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate('user-profile', review.userId); }} aria-label={`View ${name}'s profile`}>
+  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate(review.userId === currentUserId ? 'dashboard' : 'user-profile', ...(review.userId === currentUserId ? [] : [review.userId])); }} aria-label={review.userId === currentUserId ? 'View your dashboard' : `View ${name}'s profile`}>
     <span className="review-author-avatar">{review.authorAvatarUrl ? <img src={review.authorAvatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={16}/>}</span>
     <b>{name.startsWith('@') ? name : `@${name}`}</b>
   </button>;
