@@ -1,27 +1,34 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
-export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
-  const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null, followedCreators: null });
+export function Home({ navigate, query, setQuery, creators, creatorsLoading, reviews, reviewsLoading, reviewsError, reviewVotesError }) {
+  const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!supabase) return;
     let active = true;
     Promise.all([
       supabase.from('reviews').select('*', { count: 'exact', head: true }),
-      supabase.from('content_creators').select('*', { count: 'exact', head: true }),
-      supabase.rpc('get_followed_creator_count')
-    ]).then(([ratingsResult, creatorsResult, followedResult]) => {
+      supabase.from('content_creators').select('*', { count: 'exact', head: true })
+    ]).then(([ratingsResult, creatorsResult]) => {
       if (!active) return;
       if (ratingsResult.error) console.error('Rating count could not be loaded:', ratingsResult.error.message);
       if (creatorsResult.error) console.error('Creator count could not be loaded:', creatorsResult.error.message);
-      if (followedResult.error) console.error('Followed creator count could not be loaded:', followedResult.error.message);
-      setSiteCounts({ ratings: ratingsResult.error ? null : ratingsResult.count, creators: creatorsResult.error ? null : creatorsResult.count, followedCreators: followedResult.error ? null : followedResult.data });
+      setSiteCounts({ ratings: ratingsResult.error ? null : ratingsResult.count, creators: creatorsResult.error ? null : creatorsResult.count });
     });
     return () => { active = false; };
   }, []);
+
+  const totalVotes = reviewsError || reviewVotesError || reviewsLoading
+    ? null
+    : reviews.reduce((total, review) => total + Number(review.voteCounts?.up || 0) + Number(review.voteCounts?.down || 0), 0);
+  const topRatedCreators = creators
+    .filter(creator => creator.reviews > 0)
+    .slice()
+    .sort((first, second) => second.score - first.score || second.reviews - first.reviews || first.name.localeCompare(second.name))
+    .slice(0, 3);
 
   return <main>
     <section className="hero">
@@ -31,11 +38,11 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
       <div className="hero-search"><SearchBox value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
     </section>
     <section className="section featured">
-      <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Creators in the community</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
-      {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : creators.length ? <div className="card-grid">{creators.slice(0, 3).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>No creators yet</h3><p>Creators will appear here when they are added to the community.</p></div>}
+      <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Top rated creators</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
+      {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : topRatedCreators.length ? <div className="card-grid">{topRatedCreators.map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>{creators.length ? 'No community ratings yet' : 'No creators yet'}</h3><p>{creators.length ? 'Rated creators will appear here when the community shares reviews.' : 'Creators will appear here when they are added to the community.'}</p></div>}
     </section>
     <section className="trust-strip">
-      <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>{siteCounts.followedCreators === null ? '—' : Number(siteCounts.followedCreators).toLocaleString()}</strong><span>creators followed</span></div>
+      <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>{totalVotes === null ? '—' : totalVotes.toLocaleString()}</strong><span>review votes</span></div>
     </section>
     <section className="section google-data-summary" aria-labelledby="google-data-heading">
       <span className="kicker">OPTIONAL YOUTUBE CONNECTION</span>
