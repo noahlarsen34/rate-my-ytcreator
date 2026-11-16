@@ -14,6 +14,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
   const topics = useMemo(() => [...new Set([
     ...creators.map(creator => creator.category),
@@ -40,9 +41,28 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const chooseCreator = creator => {
     setQuery(creator.name);
     setCreatorPickerOpen(false);
+    setActiveSuggestionIndex(-1);
   };
-      return sortBy === 'subscribers-high' ? secondCount - firstCount : firstCount - secondCount;
-    }), [creators, query, selected, sortBy]);
+  const handleCreatorSearchKeyDown = event => {
+    if (searchType !== 'creators' || !creatorPickerOpen || !suggestions.length) {
+      if (event.key === 'Escape') setCreatorPickerOpen(false);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveSuggestionIndex(index => (index + 1) % suggestions.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveSuggestionIndex(index => index <= 0 ? suggestions.length - 1 : index - 1);
+    } else if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      chooseCreator(suggestions[activeSuggestionIndex]);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setCreatorPickerOpen(false);
+      setActiveSuggestionIndex(-1);
+    }
+  };
   const toggle = category => setSelected(category === 'All'
     ? ['All']
     : (selected.includes(category)
@@ -108,9 +128,9 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       <p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p>
     </div>
     <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
-      <SearchBox value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); }} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
-      {searchType === 'creators' && creatorPickerOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
-        {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => chooseCreator(creator)}>
+      <SearchBox value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+      {searchType === 'creators' && creatorPickerOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" id="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
+        {suggestions.map((creator, index) => <button type="button" role="option" id={`discover-creator-suggestion-${index}`} aria-selected={index === activeSuggestionIndex} key={creator.id} onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActiveSuggestionIndex(index)} onClick={() => chooseCreator(creator)}>
           <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
         </button>)}
       </div>}

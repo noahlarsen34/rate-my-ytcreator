@@ -21,11 +21,11 @@ export function ReviewAuthor({ review, navigate }) {
   </button>;
 }
 
-export function SearchBox({ value, setValue, onSubmit, compact = false, placeholder = 'Search creators or users', ariaLabel = 'Search creators or users' }) {
+export function SearchBox({ value, setValue, onSubmit, onKeyDown, compact = false, placeholder = 'Search creators or users', ariaLabel = 'Search creators or users', combobox = false, expanded = false, controls, activeDescendant }) {
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
       <Search size={compact ? 18 : 23} />
-      <input value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+      <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={onKeyDown} placeholder={placeholder} aria-label={ariaLabel} role={combobox ? 'combobox' : undefined} aria-autocomplete={combobox ? 'list' : undefined} aria-expanded={combobox ? expanded : undefined} aria-controls={combobox ? controls : undefined} aria-activedescendant={combobox ? activeDescendant : undefined} />
       {!compact && <button>Search</button>}
     </form>
   );
