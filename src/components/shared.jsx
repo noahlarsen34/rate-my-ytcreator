@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut
 } from 'lucide-react';
@@ -31,9 +31,15 @@ export function SearchBox({ value, setValue, onSubmit, compact = false, placehol
   );
 }
 
-export function Header({ navigate, query, setQuery, user, profileUsername, avatarUrl }) {
+export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [headerQuery, setHeaderQuery] = useState(query);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const suggestions = useMemo(() => {
+    const term = headerQuery.trim().toLowerCase();
+    return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 6) : [];
+  }, [creators, headerQuery]);
   const accountMenuRef = useRef(null);
   const displayName = profileUsername || user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
   useEffect(() => {
@@ -56,7 +62,14 @@ export function Header({ navigate, query, setQuery, user, profileUsername, avata
   return (
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
-      <div className="nav-search"><SearchBox compact value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
+      <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
+        <SearchBox compact value={headerQuery} setValue={value => { setHeaderQuery(value); setSuggestionsOpen(true); }} onSubmit={() => { setQuery(headerQuery); navigate('creators'); }} />
+        {suggestionsOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
+          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHeaderQuery(creator.name); setSuggestionsOpen(false); setQuery(creator.name); navigate('creators'); }}>
+            <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
+          </button>)}
+        </div>}
+      </div>
       <nav className={mobileNavOpen ? 'open' : ''}>
         <button onClick={() => goTo('creators')}>Discover</button>
         {user ? <div className="account-menu" ref={accountMenuRef}>

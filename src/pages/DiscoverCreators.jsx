@@ -13,6 +13,8 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
+  const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
   const topics = useMemo(() => [...new Set([
     ...creators.map(creator => creator.category),
     'Gaming', 'Music', 'Vlog', 'Comedy', 'Educational'
@@ -28,6 +30,17 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       if (firstCount == null && secondCount == null) return first.name.localeCompare(second.name);
       if (firstCount == null) return 1;
       if (secondCount == null) return -1;
+      return secondCount - firstCount;
+    }), [creators, query, selected]);
+  const suggestions = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return [];
+    return creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 8);
+  }, [creators, query]);
+  const chooseCreator = creator => {
+    setQuery(creator.name);
+    setCreatorPickerOpen(false);
+  };
       return sortBy === 'subscribers-high' ? secondCount - firstCount : firstCount - secondCount;
     }), [creators, query, selected, sortBy]);
   const toggle = category => setSelected(category === 'All'
@@ -94,7 +107,14 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       <h1>{searchType === 'creators' ? 'Find your next favorite creator' : 'Find people you know'}</h1>
       <p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p>
     </div>
-    <SearchBox value={query} setValue={setQuery} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+    <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
+      <SearchBox value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); }} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+      {searchType === 'creators' && creatorPickerOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
+        {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => chooseCreator(creator)}>
+          <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
+        </button>)}
+      </div>}
+    </div>
     <div className="discover-search-tabs" role="tablist" aria-label="Search type">
       <button type="button" role="tab" aria-selected={searchType === 'creators'} className={searchType === 'creators' ? 'active' : ''} onClick={() => setSearchType('creators')}><Search size={16}/> Creators</button>
       <button type="button" role="tab" aria-selected={searchType === 'people'} className={searchType === 'people' ? 'active' : ''} onClick={() => setSearchType('people')}><UsersRound size={16}/> People</button>
