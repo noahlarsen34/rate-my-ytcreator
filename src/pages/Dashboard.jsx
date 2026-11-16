@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Eye, Settings, MessageSquareText, Bookmark, ThumbsUp, ChevronRight, ChevronDown, ChevronUp, UsersRound, X } from 'lucide-react';
+import { Check, Eye, Settings, MessageSquareText, Bookmark, ThumbsUp, ChevronRight, ChevronDown, ChevronUp, UsersRound, X, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Avatar, CreatorCard, Stars } from '../components/shared';
 
