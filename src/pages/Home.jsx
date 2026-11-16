@@ -1,10 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { supabase } from '../lib/supabase';
 
 export function Home({ navigate, query, setQuery, creators, creatorsLoading, reviews, reviewsLoading, reviewsError, reviewVotesError }) {
   const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
+export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
+  const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null, followedCreators: null });
+  const [homeQuery, setHomeQuery] = useState(query);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const suggestions = useMemo(() => {
+    const term = homeQuery.trim().toLowerCase();
+    return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 8) : [];
+  }, [creators, homeQuery]);
+  const searchCreators = value => {
+    setQuery(value);
+    navigate('creators');
+  };
 
   useEffect(() => {
     if (!supabase) return;
@@ -35,7 +47,14 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading, rev
       <div className="eyebrow"><Sparkles size={15} /> Real people. Honest ratings.</div>
       <h1>Know what’s worth<br /><em>your watch time.</em></h1>
       <p>Discover creators you’ll love—and get the full picture before you hit subscribe.</p>
-      <div className="hero-search"><SearchBox value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
+      <div className="hero-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
+        <SearchBox value={homeQuery} setValue={value => { setHomeQuery(value); setSuggestionsOpen(true); }} onSubmit={() => searchCreators(homeQuery)} />
+        {suggestionsOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
+          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHomeQuery(creator.name); setSuggestionsOpen(false); searchCreators(creator.name); }}>
+            <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
+          </button>)}
+        </div>}
+      </div>
     </section>
     <section className="section featured">
       <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Top rated creators</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>

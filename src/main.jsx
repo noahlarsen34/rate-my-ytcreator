@@ -486,6 +486,16 @@ function App() {
     const databaseCreatorId = databaseCreatorIds[review.creatorId];
     if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
 
+    const { data: existingReview, error: existingReviewError } = await supabase
+      .from('reviews')
+      .select('review_id')
+      .eq('user_id', session.user.id)
+      .eq('creator_id', databaseCreatorId)
+      .limit(1)
+      .maybeSingle();
+    if (existingReviewError) throw new Error('We could not check whether you have already reviewed this creator. Please try again.');
+    if (existingReview) throw new Error('You can only have one review per creator. Editing an existing review is not available yet.');
+
     const { data, error } = await supabase.from('reviews').insert({
       user_id:session.user.id,
       creator_id:databaseCreatorId,
@@ -518,6 +528,36 @@ function App() {
       console.error('AI review summary could not be refreshed:', summaryError);
     });
     return insertedReview;
+  };
+
+  const updateReview = async (reviewId, review) => {
+    if (!session?.user?.id) throw new Error('Please log in with a valid account before editing a review.');
+    const databaseCreatorId = databaseCreatorIds[review.creatorId];
+    if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
+    const { data, error } = await supabase.from('reviews').update({
+      overall_rating: review.overallRating,
+      profanity: review.profanity,
+      substance_use: review.substanceUse,
+      age_level: review.ageLevel,
+      review_text: review.reviewText,
+      bias_text: review.biasText,
+      uses_ai: review.usesAi
+    }).eq('review_id', reviewId).eq('user_id', session.user.id)
+      .select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
+    if (error) throw new Error('Your review could not be updated. Please try again.');
+    const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
+    const updatedReview = {
+      ...formatReview(data, review.creatorId, creatorName),
+      authorUsername: profile?.username || session.user.user_metadata?.username || null,
+      authorAvatarUrl: profile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null
+    };
+    const nextReviews = reviews.map(existing => existing.id === updatedReview.id ? updatedReview : existing);
+    setReviews(nextReviews);
+    setAppCreators(currentCreators => creatorsWithReviewSummaries(currentCreators, nextReviews));
+    void supabase.functions.invoke('creator-ai', { body: { action: 'summarize_reviews', creatorId: databaseCreatorId } })
+      .then(({ error: summaryError }) => { if (!summaryError) setCreatorRefresh(value => value + 1); })
+      .catch(summaryError => console.error('AI review summary could not be refreshed:', summaryError));
+    return updatedReview;
   };
 
   const navigate=(next,id=null,reviewId=null)=>{
@@ -579,7 +619,7 @@ function App() {
     {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile} creators={appCreators} followingIds={followingIds}/>}
     {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged} onAvatarUpload={uploadAvatar} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} avatarUploading={avatarUploading} avatarError={avatarError} onCreatorsChanged={() => setCreatorRefresh(value => value + 1)}/>}
     {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected} user={session?.user}/>}
-    {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview} creators={appCreators}/>}
+    {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} selectedReviewId={selectedReviewId} submitReview={submitReview} updateReview={updateReview} creators={appCreators} reviews={reviews} user={session.user}/>}
     {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}
   </>;
 }
