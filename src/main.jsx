@@ -602,6 +602,12 @@ function App() {
     window.scrollTo(0,0);
   };
   const creator=appCreators.find(c=>c.id===selected);
+  useEffect(() => {
+    if (page !== 'profile' || !session?.user?.id || !creator?.databaseId || !supabase) return;
+    void supabase.rpc('record_creator_view', { p_creator_id: creator.databaseId }).then(({ error }) => {
+      if (error) console.error('Creator view could not be recorded:', error.message);
+    });
+  }, [page, creator?.databaseId, session?.user?.id]);
   const handleReviewVoteCountsChange = (reviewId, voteCounts) => {
     setReviews(current => current.map(review => review.id === reviewId ? { ...review, voteCounts } : review));
   };
