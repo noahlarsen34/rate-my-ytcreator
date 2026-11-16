@@ -21,33 +21,101 @@ export function Profile({ creator, navigate, reviews, reviewsLoading, reviewsErr
   const [reportSaving, setReportSaving] = useState(false);
   const [reportError, setReportError] = useState('');
   const [reportLoginPrompt, setReportLoginPrompt] = useState(false);
+  const [reportLoginPromptReview, setReportLoginPromptReview] = useState(null);
+  const [reportReview, setReportReview] = useState(null);
+  const [openCreatorReport, setOpenCreatorReport] = useState(false);
+  const [openReviewReports, setOpenReviewReports] = useState(() => new Set());
+  const [reportStatusLoading, setReportStatusLoading] = useState(false);
+  const [reportStatusError, setReportStatusError] = useState(false);
+  const [reportStatusLoadedFor, setReportStatusLoadedFor] = useState(null);
+  const [reportStatusAttempt, setReportStatusAttempt] = useState(0);
+  const reportStatusKey = user?.id && creator.databaseId ? `${user.id}:${creator.databaseId}` : null;
   const reportLinkRef = useRef(null);
   useEffect(() => {
-    if (!reportLoginPrompt) return;
+    if (!reportLoginPrompt && !reportLoginPromptReview) return;
     const dismissOutside = event => {
-      if (!reportLinkRef.current?.contains(event.target)) setReportLoginPrompt(false);
+      if (event.target.closest('.review-report-control')) return;
+      if (!reportLinkRef.current?.contains(event.target)) {
+        setReportLoginPrompt(false);
+        setReportLoginPromptReview(null);
+      }
     };
     document.addEventListener('pointerdown', dismissOutside);
     return () => document.removeEventListener('pointerdown', dismissOutside);
-  }, [reportLoginPrompt]);
+  }, [reportLoginPrompt, reportLoginPromptReview]);
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    let timeoutId;
+    setOpenCreatorReport(false);
+    setOpenReviewReports(new Set());
+    setReportStatusError(false);
+    setReportStatusLoadedFor(null);
+    if (!user?.id || !creator.databaseId) {
+      setReportStatusLoading(false);
+      return () => { active = false; };
+    }
+    if (!supabase) {
+      setReportStatusError(true);
+      setReportStatusLoadedFor(`${user.id}:${creator.databaseId}`);
+      setReportStatusLoading(false);
+      return () => { active = false; };
+    }
+    setReportStatusLoading(true);
+    timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    const loadReportStatus = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_my_open_report_status', { p_creator_id: creator.databaseId }).abortSignal(controller.signal);
+        if (!active) return;
+        if (error) throw error;
+        const status = Array.isArray(data) ? data[0] : data;
+        if (!status) throw new Error('The open report status function returned no row.');
+        const reportedReviewIds = Array.isArray(status.review_ids)
+          ? status.review_ids
+          : typeof status.review_ids === 'string'
+            ? status.review_ids.replace(/^\{|\}$/g, '').split(',').filter(Boolean)
+            : [];
+        setOpenCreatorReport(status.creator_reported === true || status.creator_reported === 'true');
+        setOpenReviewReports(new Set(reportedReviewIds.map(String)));
+        setReportStatusLoadedFor(`${user.id}:${creator.databaseId}`);
+      } catch (error) {
+        if (!active) return;
+        console.error('Open report status could not be loaded:', error);
+        setReportStatusError(true);
+        setReportStatusLoadedFor(`${user.id}:${creator.databaseId}`);
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (active) setReportStatusLoading(false);
+      }
+    };
+    loadReportStatus();
+    return () => { active = false; window.clearTimeout(timeoutId); controller.abort(); };
+  }, [user?.id, creator.databaseId, reportStatusAttempt]);
   const submitReport = async event => {
     event.preventDefault();
     if (!user) { setReportLoginPrompt(true); return; }
-    if (!supabase || !creator.databaseId || reportSaving) return;
+    if (!supabase || (!reportReview && !creator.databaseId) || reportSaving) return;
     setReportSaving(true);
     setReportError('');
+    const reportTarget = reportReview
+      ? { review_id: reportReview.id, creator_id: null }
+      : { creator_id: creator.databaseId };
     const { error } = await supabase.from('reports').insert({
       user_id: user.id,
-      creator_id: creator.databaseId,
+      ...reportTarget,
       reason: reportReason,
       description: reportDescription.trim() || null
     });
     setReportSaving(false);
     if (error) {
       console.error('Report submission failed:', error);
-      setReportError(`Your report could not be submitted: ${error.message}`);
+      setReportError(error.code === '23505'
+        ? 'You already have an open report for this item.'
+        : `Your report could not be submitted: ${error.message}`);
       return;
     }
+    if (reportReview) setOpenReviewReports(current => new Set(current).add(String(reportReview.id)));
+    else setOpenCreatorReport(true);
     setSent(true);
   };
   const creatorReviews = reviews
@@ -56,6 +124,21 @@ export function Profile({ creator, navigate, reviews, reviewsLoading, reviewsErr
   const hasRatings = creator.reviews > 0;
   const ratingBreakdown = creator.ratingBreakdown || Array(10).fill(0);
   const formatStat = value => value === null || value === undefined ? 'Not available' : Number(value).toLocaleString();
+  const openReportForReview = review => {
+    if (!user) {
+      setReportLoginPrompt(false);
+      setReportLoginPromptReview(current => String(current) === String(review.id) ? null : review.id);
+      return;
+    }
+    setReportLoginPromptReview(null);
+    setReportReview(review);
+    setReportLoginPrompt(false);
+    setBug(true);
+    setSent(false);
+    setReportReason('');
+    setReportDescription('');
+    setReportError('');
+  };
   useEffect(() => {
     if (!reviewFocusId || reviewsLoading) return;
     document.getElementById(`review-${reviewFocusId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -69,10 +152,15 @@ export function Profile({ creator, navigate, reviews, reviewsLoading, reviewsErr
         {reviewsLoading && <p className="review-status">Loading reviews…</p>}
         {reviewsError && <p className="form-error">{reviewsError}</p>}
         {!reviewsLoading && !reviewsError && creatorReviews.length === 0 && <p className="review-status">No reviews yet. Be the first to rate this creator.</p>}
-        {creatorReviews.map(review => <article className={`profile-review ${review.userId ? 'profile-review-clickable' : ''}`} id={`review-${review.id}`} key={review.id} onClick={event => { if (review.userId && !event.target.closest('.review-votes')) navigate('user-profile', review.userId); }}><div className="profile-review-header"><ReviewAuthor review={review} navigate={navigate}/><div><Stars score={review.score} small/><span className="date">{review.date}</span></div></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Recurring sponsorships/viewpoints: {review.bias}</small>}<ReviewVotes review={review} user={user} navigate={navigate} onVoteCountsChange={onReviewVoteCountsChange}/></article>)}
+        {creatorReviews.map(review => {
+          const username = review.authorUsername ? (review.authorUsername.startsWith('@') ? review.authorUsername : `@${review.authorUsername}`) : 'this user';
+          const hasOpenReport = openReviewReports.has(String(review.id));
+          const reportStatusPending = Boolean(reportStatusKey && (reportStatusLoading || reportStatusLoadedFor !== reportStatusKey));
+          return <article className={`profile-review ${review.userId ? 'profile-review-clickable' : ''}`} id={`review-${review.id}`} key={review.id} onClick={event => { if (review.userId && !event.target.closest('.review-votes, .review-report-control')) navigate('user-profile', review.userId); }}><div className="profile-review-header"><ReviewAuthor review={review} navigate={navigate}/><div className="profile-review-meta"><div><Stars score={review.score} small/><span className="date">{review.date}</span></div><div className="review-report-control"><button type="button" className={`review-report-button${hasOpenReport ? ' reported' : ''}`} aria-label={hasOpenReport ? 'You have an open report for this review' : reportStatusError ? 'Retry checking report status' : `Report ${username}'s review`} title={hasOpenReport ? 'Open report submitted' : reportStatusPending ? 'Checking report status…' : reportStatusError ? 'Retry status check' : 'Report this review'} disabled={hasOpenReport || reportStatusPending} onClick={event => { event.stopPropagation(); if (reportStatusError) { setReportStatusAttempt(attempt => attempt + 1); return; } openReportForReview(review); }}><Flag size={17} fill={hasOpenReport ? 'currentColor' : 'none'}/></button>{String(reportLoginPromptReview) === String(review.id) && <div className="vote-login-prompt review-report-login-prompt" role="status"><span>Log in to submit a report.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div></div></div><p>{review.text}</p><div className="review-details"><span>Age: {review.ageLevel}</span><span>Profanity: {review.profanity}/5</span><span>Substance: {review.substance}/5</span>{review.usesAi && <span>AI: {review.usesAi}</span>}</div>{review.bias && <small>Recurring sponsorships/viewpoints: {review.bias}</small>}<ReviewVotes review={review} user={user} navigate={navigate} onVoteCountsChange={onReviewVoteCountsChange}/></article>;
+        })}
       </div>
     </section><aside><div className="panel rating-split"><h3 className="rating-split-title">Rating breakdown {hasRatings&&<span className="score-help"><button type="button" aria-label="Why this score?" aria-describedby="score-explanation"><CircleHelp size={18}/></button><span className="score-tooltip" role="tooltip" id="score-explanation">This breakdown is calculated from ratings submitted by the Rate My Creator community.</span></span>}</h3>{hasRatings?Array.from({ length: 10 }, (_, index) => 5 - index * 0.5).map(score=>{const percent=ratingBreakdown[Math.round(score * 2) - 1]||0;return <div key={score}><span>{score} <Star size={11} fill="currentColor"/></span><i><b style={{width:`${percent}%`}}/></i><small>{percent}%</small></div>}):<div className="breakdown-empty"><p>No rating distribution is available yet.</p></div>}</div>{creator.youtubeChannelId && <section className="panel creator-videos"><h2>Videos</h2><div className="creator-videos-frame"><iframe src={`https://www.youtube-nocookie.com/embed?list=${encodeURIComponent(`UU${creator.youtubeChannelId.slice(2)}`)}`} title={`${creator.name} YouTube uploads`} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen /></div></section>}</aside></div>
-    <div className="report-link-wrap" ref={reportLinkRef}><button className="report-link" onClick={() => { if (!user) { setReportLoginPrompt(current => !current); return; } setReportLoginPrompt(false); setBug(true); setSent(false); setReportReason(''); setReportDescription(''); setReportError(''); }}><Flag size={15}/> See something incorrect? Report an issue</button>{reportLoginPrompt&&!bug&&<div className="vote-login-prompt report-link-login-prompt" role="status"><span>Log in to submit a report.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>
-    {bug && <div className="modal-backdrop" onMouseDown={() => setBug(false)}><div className="modal report-modal" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setBug(false)}><X/></button>{sent ? <div className="success"><Check/><h2>Thanks for the heads-up!</h2><p>We’ll review your report soon.</p><button className="primary" onClick={() => setBug(false)}>Done</button></div> : <form className="report-form" onSubmit={submitReport}><span className="kicker">REPORT AN ISSUE</span><h2>What doesn’t look right?</h2><p>Tell us what’s inaccurate on {creator.name}’s profile.</p><label className="report-reason-field"><span>Reason</span><select required value={reportReason} onChange={event => setReportReason(event.target.value)}><option value="">Select a reason</option><option>Incorrect Information</option><option>Misleading</option><option>Spam or promotion</option><option>Harassment or harmful content</option><option>Other</option></select></label><label className="report-description-field"><span>Description <small>{reportDescription.length}/1000</small></span><textarea maxLength={1000} value={reportDescription} onChange={event => setReportDescription(event.target.value)} placeholder="Describe the issue or correction…" rows="5"/></label>{reportError&&<p className="form-error" role="alert">{reportError}</p>}<button className="primary full" type="submit" disabled={reportSaving || !reportReason}>{reportSaving?'Submitting…':'Submit report'}</button></form>}</div></div>}
+    {openCreatorReport ? <p className="report-link report-link-submitted" role="status">Report submitted, thank you for the information</p> : <div className="report-link-wrap" ref={reportLinkRef}><button className="report-link" disabled={Boolean(reportStatusKey && (reportStatusLoading || reportStatusLoadedFor !== reportStatusKey))} title={reportStatusError ? 'Click to retry the report status check' : undefined} onClick={() => { if (!user) { setReportLoginPromptReview(null); setReportLoginPrompt(current => !current); return; } if (reportStatusError) { setReportStatusAttempt(attempt => attempt + 1); return; } if (reportStatusLoading || reportStatusLoadedFor !== reportStatusKey) return; setReportLoginPrompt(false); setReportReview(null); setBug(true); setSent(false); setReportReason(''); setReportDescription(''); setReportError(''); }}><Flag size={15}/>{reportStatusLoading || Boolean(reportStatusKey && reportStatusLoadedFor !== reportStatusKey) ? 'Checking report status…' : reportStatusError ? 'Report status unavailable — retry' : 'See something incorrect? Report an issue'}</button>{reportLoginPrompt&&!bug&&<div className="vote-login-prompt report-link-login-prompt" role="status"><span>Log in to submit a report.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}</div>}
+    {bug && <div className="modal-backdrop" onMouseDown={() => setBug(false)}><div className="modal report-modal" onMouseDown={e => e.stopPropagation()}><button className="modal-close" onClick={() => setBug(false)}><X/></button>{sent ? <div className="success"><Check/><h2>Thanks for the heads-up!</h2><p>We’ll review your report soon.</p><button className="primary" onClick={() => setBug(false)}>Done</button></div> : <form className="report-form" onSubmit={submitReport}><span className="kicker">REPORT AN ISSUE</span><h2>What doesn’t look right?</h2><p>{reportReview ? `Tell us what’s inaccurate in ${reportReview.authorUsername ? `${reportReview.authorUsername.startsWith('@') ? reportReview.authorUsername : `@${reportReview.authorUsername}`}'s` : 'this user’s'} review.` : `Tell us what’s inaccurate on ${creator.name}’s profile.`}</p><label className="report-reason-field"><span>Reason</span><select required value={reportReason} onChange={event => setReportReason(event.target.value)}><option value="">Select a reason</option><option>Incorrect Information</option><option>Misleading</option><option>Spam or promotion</option><option>Harassment or harmful content</option><option>Other</option></select></label><label className="report-description-field"><span>Description <small>{reportDescription.length}/1000</small></span><textarea maxLength={1000} value={reportDescription} onChange={event => setReportDescription(event.target.value)} placeholder="Describe the issue or correction…" rows="5"/></label>{reportError&&<p className="form-error" role="alert">{reportError}</p>}<button className="primary full" type="submit" disabled={reportSaving || !reportReason}>{reportSaving?'Submitting…':'Submit report'}</button></form>}</div></div>}
   </main>;
 }
