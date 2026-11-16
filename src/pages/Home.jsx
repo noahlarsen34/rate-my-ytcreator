@@ -3,8 +3,9 @@ import { Sparkles, ChevronRight } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { supabase } from '../lib/supabase';
 
-export function Home({ navigate, query, setQuery, creators, creatorsLoading, reviews, reviewsLoading, reviewsError, reviewVotesError }) {
+export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
   const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
+  const [totalVotes, setTotalVotes] = useState(null);
   const [homeQuery, setHomeQuery] = useState(query);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const suggestions = useMemo(() => {
@@ -31,9 +32,43 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading, rev
     return () => { active = false; };
   }, []);
 
-  const totalVotes = reviewsError || reviewVotesError || reviewsLoading
-    ? null
-    : reviews.reduce((total, review) => total + Number(review.voteCounts?.up || 0) + Number(review.voteCounts?.down || 0), 0);
+  useEffect(() => {
+    if (!supabase) {
+      setTotalVotes(0);
+      return;
+    }
+    let active = true;
+    const loadTotalVotes = async () => {
+      const pageSize = 1000;
+      let offset = 0;
+      let count = 0;
+      try {
+        while (active) {
+          const { data: reviewRows, error: reviewsError } = await supabase
+            .from('reviews')
+            .select('review_id')
+            .order('review_id', { ascending: true })
+            .range(offset, offset + pageSize - 1);
+          if (reviewsError) throw reviewsError;
+          const reviewIds = (reviewRows || []).map(review => review.review_id);
+          if (!reviewIds.length) break;
+
+          const { data: voteCounts, error: voteCountsError } = await supabase.rpc('get_review_vote_counts', { p_review_ids: reviewIds });
+          if (voteCountsError) throw voteCountsError;
+          count += (voteCounts || []).reduce((total, row) => total + Number(row.upvotes) + Number(row.downvotes), 0);
+          if (reviewIds.length < pageSize) break;
+          offset += reviewIds.length;
+        }
+        if (active) setTotalVotes(count);
+      } catch (error) {
+        console.error('Review vote total could not be loaded:', error.message);
+        if (active) setTotalVotes(null);
+      }
+    };
+    loadTotalVotes();
+    return () => { active = false; };
+  }, []);
+
   const topRatedCreators = creators
     .filter(creator => creator.reviews > 0)
     .slice()
