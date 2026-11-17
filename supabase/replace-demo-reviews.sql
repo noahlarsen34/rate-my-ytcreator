@@ -104,7 +104,11 @@ select
   (array[2.5, 3.0, 3.5, 3.5, 4.0, 4.0, 4.0, 4.5, 4.5, 5.0])[generated_reviews.rating_number],
   null,
   null,
-  'Not evaluated',
+  case
+    when generated_reviews.inferred_topic = 'family and kids' then 'All ages'
+    when generated_reviews.inferred_topic = 'educational' then '8+'
+    else '13+'
+  end,
   case generated_reviews.template_number
     when 1 then generated_reviews.creator_name || ' may be worth exploring for viewers interested in ' || generated_reviews.inferred_topic || '. Checking several recent uploads is the best way to judge the channel''s current style.'
     when 2 then 'The public channel profile suggests that ' || generated_reviews.creator_name || ' focuses mainly on ' || generated_reviews.inferred_topic || '. Different uploads may appeal to different viewers.'
