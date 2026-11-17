@@ -1,3 +1,4 @@
+-- Superseded by replace-demo-reviews.sql. Keep this file for migration history.
 -- Run only after 20261116020000_synthetic_demo_reviews.sql.
 -- This safely fills each creator to four total reviews. Running it again does
 -- not add more reviews to creators that already have four or more.
