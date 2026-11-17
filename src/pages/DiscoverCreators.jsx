@@ -16,11 +16,8 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [currentPage, setCurrentPage] = useState(1);
-  const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category))], [creators]);
-  const topics = useMemo(() => [...new Set([
-    ...creators.map(creator => creator.category),
-    'Gaming', 'Music', 'Vlog', 'Comedy', 'Educational'
-  ])], [creators]);
+  const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category).filter(Boolean))], [creators]);
+  const topics = useMemo(() => categories.filter(topic => topic !== 'All'), [categories]);
   const filtered = useMemo(() => creators
     .filter(creator => (selected.includes('All') || selected.some(topic => matchesTopic(creator, topic)))
       && (`${creator.name} ${creator.topic} ${creator.category}`).toLowerCase().includes(query.toLowerCase()))
