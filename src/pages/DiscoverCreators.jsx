@@ -128,14 +128,14 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
       ? 'Enter at least 2 characters to search usernames.'
       : '';
 
-  return <main className="page discover-page">
+  return <main className={`page discover-page ${searchType === 'people' ? 'people-mode' : ''}`}>
     <div className="page-heading">
       <span className="kicker">DISCOVER</span>
       <h1>{searchType === 'creators' ? 'Find your next favorite creator' : 'Find people you know'}</h1>
       <p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p>
     </div>
     <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
-      <SearchBox value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+      <SearchBox compact={searchType === 'people'} value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
       {searchType === 'creators' && creatorPickerOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" id="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
         {suggestions.map((creator, index) => <button type="button" role="option" id={`discover-creator-suggestion-${index}`} aria-selected={index === activeSuggestionIndex} key={creator.id} onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActiveSuggestionIndex(index)} onClick={() => chooseCreator(creator)}>
           <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
