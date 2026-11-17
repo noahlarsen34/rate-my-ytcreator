@@ -58,6 +58,7 @@ export function pageFromPathname() {
   if (path === '/login') return 'login';
   if (path === '/signup') return 'signup';
   if (path === '/dashboard') return 'dashboard';
+  if (path === '/admin') return 'admin';
   if (path === '/settings') return 'settings';
   if (path.startsWith('/users/')) return 'user-profile';
   if (path === '/rate') return 'rate';
@@ -80,6 +81,6 @@ export function pathForPage(page, id = null) {
   if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
   if (page === 'user-profile') return id ? `/users/${encodeURIComponent(id)}` : '/';
   if (page === 'privacy' || page === 'terms') return `/${page}`;
-  if (['login', 'signup', 'dashboard', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
+  if (['login', 'signup', 'dashboard', 'admin', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
   return '/';
 }

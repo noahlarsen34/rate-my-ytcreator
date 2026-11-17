@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles
+  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles, ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -32,7 +32,7 @@ export function SearchBox({ value, setValue, onSubmit, onKeyDown, compact = fals
   );
 }
 
-export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl }) {
+export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl, isAdmin = false }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [headerQuery, setHeaderQuery] = useState(query);
@@ -78,6 +78,7 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
           <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>{displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
           {accountMenuOpen && <div className="account-dropdown" role="menu">
             <button role="menuitem" onClick={() => goTo('dashboard')}>Dashboard</button>
+            {isAdmin&&<button role="menuitem" onClick={() => goTo('admin')}><ShieldCheck size={17}/> Admin</button>}
             <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
             <button className="dropdown-logout" role="menuitem" onClick={logout}><LogOut size={17}/> Log out</button>
           </div>}
