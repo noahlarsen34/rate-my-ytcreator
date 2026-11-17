@@ -25,13 +25,13 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
 
   return <main>
     <section className="hero">
-      <div className="eyebrow"><Sparkles size={15} /> Real people. Honest ratings.</div>
-      <h1>Know what’s worth<br /><em>your watch time.</em></h1>
-      <p>Discover creators you’ll love—and get the full picture before you hit subscribe.</p>
+      <div className="eyebrow"><Sparkles size={15} /> Make informed choices about online content</div>
+      <h1>Know what’s behind<br /><em>the next click.</em></h1>
+      <p>Check community insights on creators before you watch or subscribe. For young viewers and the adults who support them.</p>
       <div className="hero-search"><SearchBox value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
     </section>
     <section className="section featured">
-      <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Creators in the community</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
+      <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Creators to check out</h2></div><button className="text-button" onClick={() => navigate('creators')}>Explore creators <ChevronRight size={18} /></button></div>
       {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : creators.length ? <div className="card-grid">{creators.slice(0, 3).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>No creators yet</h3><p>Creators will appear here when they are added to the community.</p></div>}
     </section>
     <section className="trust-strip">
@@ -45,6 +45,6 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
       <p>Google user data is not sold, used for advertising or credit decisions, used to train artificial intelligence models, or used to create or distribute AI-generated non-consensual intimate imagery.</p>
       <button className="text-button" onClick={() => navigate('privacy')}>Read the Rate My Creator Privacy Policy <ChevronRight size={18}/></button>
     </section>
-    <section className="cta"><div><span className="kicker">YOUR VOICE MATTERS</span><h2>Watched something worth sharing?</h2><p>Help someone else decide what deserves their next click.</p></div><button className="primary" onClick={() => navigate('rate')}>Write a rating <ChevronRight size={18} /></button></section>
+    <section className="cta"><div><span className="kicker">HELP OTHERS MAKE INFORMED CHOICES</span><h2>Notice something viewers should know?</h2><p>Share a specific review to help young viewers and families make informed choices.</p></div><button className="primary" onClick={() => navigate('rate')}>Write a rating <ChevronRight size={18} /></button></section>
   </main>;
 }
