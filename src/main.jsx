@@ -14,9 +14,11 @@ import { AccountSettings } from './pages/AccountSettings';
 import { UserProfile } from './pages/UserProfile';
 import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
+import { AdminUsers } from './pages/AdminUsers';
+import './admin.css';
 
 const initialsFor = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'YT';
-const protectedPages = new Set(['dashboard', 'settings', 'rate', 'complete-profile']);
+const protectedPages = new Set(['dashboard', 'admin', 'settings', 'rate', 'complete-profile']);
 const cleanYouTubeDescription = value => {
   const cleaned = String(value || '')
     .replace(/\b(?:contact(?: me)?|business inquiries?|inquiries?|email|discord|twitter|instagram|tiktok)\s*[:\-]?.*$/gim, '')
@@ -28,7 +30,7 @@ const cleanYouTubeDescription = value => {
   if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
-const returnablePages = new Set(['home', 'creators', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'settings', 'rate']);
+const returnablePages = new Set(['home', 'creators', 'family', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'admin', 'settings', 'rate']);
 const savedPageDestination = () => {
   try {
     const destination = JSON.parse(window.localStorage.getItem('lastPageDestination'));
@@ -74,9 +76,10 @@ const creatorFromDatabase = (row, typeNames) => {
     topic: typeNames.get(String(row.type_id)) || 'YouTube creator',
     tagline: 'New to Rate My Creator',
     description: cleanYouTubeDescription(row.creator_description || row.description),
-    profanity: 0,
-    substance: 0,
+    profanity: null,
+    substance: null,
     ai: 'Not enough data',
+    syntheticReviews: 0,
     ...aiSummary,
     ratingBreakdown: Array(10).fill(0)
   };
@@ -90,16 +93,29 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
     const current = totals.get(review.creatorId) || {
       total: 0,
       profanity: 0,
+      profanityCount: 0,
       substance: 0,
+      profanityCount: 0,
+      substanceCount: 0,
       count: 0,
+      syntheticCount: 0,
       ages: {},
       ai: {},
       scores: Array(10).fill(0)
     };
     current.total += score;
-    current.profanity += Number(review.profanity) || 0;
-    current.substance += Number(review.substance) || 0;
+    const profanity = Number(review.profanity);
+    if (Number.isFinite(profanity) && profanity >= 1 && profanity <= 5) {
+      current.profanity += profanity;
+      current.profanityCount += 1;
+    }
+    const substance = Number(review.substance);
+    if (Number.isFinite(substance) && substance >= 1 && substance <= 5) {
+      current.substance += substance;
+      current.substanceCount += 1;
+    }
     current.count += 1;
+    if (review.reviewSource === 'synthetic_demo') current.syntheticCount += 1;
     if (review.ageLevel) current.ages[review.ageLevel] = (current.ages[review.ageLevel] || 0) + 1;
     if (review.usesAi && review.usesAi !== 'Unsure') current.ai[review.usesAi] = (current.ai[review.usesAi] || 0) + 1;
     current.scores[Math.round(score * 2) - 1] += 1;
@@ -114,8 +130,9 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
         ...creator,
         score: 0,
         reviews: 0,
-        profanity: 0,
-        substance: 0,
+        profanity: null,
+        substance: null,
+        syntheticReviews: 0,
         audience: 'Community rating pending',
         ai: 'Not enough data',
         ratingBreakdown: Array(10).fill(0)
@@ -125,8 +142,9 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
       ...creator,
       score: rating.total / rating.count,
       reviews: rating.count,
-      profanity: rating.profanity / rating.count,
-      substance: rating.substance / rating.count,
+      profanity: rating.profanityCount ? rating.profanity / rating.profanityCount : null,
+      substance: rating.substanceCount ? rating.substance / rating.substanceCount : null,
+      syntheticReviews: rating.syntheticCount,
       audience: mostCommon(rating.ages) || 'Not enough data',
       ai: mostCommon(rating.ai) || 'Not enough data',
       ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
@@ -135,7 +153,8 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
 };
 
 function App() {
-  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(() => selectedIdFromPathname() || window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState([]), [creatorsLoading,setCreatorsLoading]=useState(isSupabaseConfigured), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({}), [avatarUploading,setAvatarUploading]=useState(false), [avatarError,setAvatarError]=useState('');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(() => selectedIdFromPathname() || window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState([]), [creatorsLoading,setCreatorsLoading]=useState(isSupabaseConfigured), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({}), [avatarUploading,setAvatarUploading]=useState(false), [avatarError,setAvatarError]=useState(''), [isAdmin,setIsAdmin]=useState(false);
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
   const usernameUpdatesInFlight = useRef(new Set());
@@ -156,6 +175,15 @@ function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (!session?.access_token) { setIsAdmin(false); return; }
+    let active = true;
+    fetch('/api/admin/users?check=1', { headers: { Authorization: `Bearer ${session.access_token}` } }).then(response => {
+      if (active) setIsAdmin(response.ok);
+    }).catch(() => { if (active) setIsAdmin(false); });
+    return () => { active = false; };
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has('auth')) return;
@@ -372,7 +400,7 @@ function App() {
       setCreatorsLoading(true);
       const [creatorsResult, reviewsResult, typesResult] = await Promise.all([
         supabase.from('content_creators').select('*'),
-        supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
+        supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
         ,supabase.from('channel_types').select('type_id, type_name')
       ]);
 
@@ -418,7 +446,7 @@ function App() {
         }
         const [countsResult, userVotesResult] = await Promise.all(voteQueries);
         if (countsResult.error) console.error('Review vote counts could not be loaded:', countsResult.error.message);
-        else voteCounts = new Map((countsResult.data || []).map(row => [String(row.review_id), { up: Number(row.upvotes), down: Number(row.downvotes) }]));
+        if (!countsResult.error) voteCounts = new Map((countsResult.data || []).map(row => [String(row.review_id), { up: Number(row.upvotes), down: Number(row.downvotes) }]));
         if (userVotesResult) {
           if (userVotesResult.error) console.error('Your review votes could not be loaded:', userVotesResult.error.message);
           else userVotes = new Map((userVotesResult.data || []).map(row => [String(row.review_id), Number(row.vote) === 1 ? 'up' : 'down']));
@@ -483,6 +511,16 @@ function App() {
     const databaseCreatorId = databaseCreatorIds[review.creatorId];
     if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
 
+    const { data: existingReview, error: existingReviewError } = await supabase
+      .from('reviews')
+      .select('review_id')
+      .eq('user_id', session.user.id)
+      .eq('creator_id', databaseCreatorId)
+      .limit(1)
+      .maybeSingle();
+    if (existingReviewError) throw new Error('We could not check whether you have already reviewed this creator. Please try again.');
+    if (existingReview) throw new Error('You can only have one review per creator. Editing an existing review is not available yet.');
+
     const { data, error } = await supabase.from('reviews').insert({
       user_id:session.user.id,
       creator_id:databaseCreatorId,
@@ -493,7 +531,7 @@ function App() {
       review_text:review.reviewText,
       bias_text:review.biasText,
       uses_ai:review.usesAi
-    }).select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, created_at').single();
+    }).select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at').single();
 
     if (error) throw new Error(error.message);
     const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
@@ -515,6 +553,36 @@ function App() {
       console.error('AI review summary could not be refreshed:', summaryError);
     });
     return insertedReview;
+  };
+
+  const updateReview = async (reviewId, review) => {
+    if (!session?.user?.id) throw new Error('Please log in with a valid account before editing a review.');
+    const databaseCreatorId = databaseCreatorIds[review.creatorId];
+    if (!databaseCreatorId) throw new Error('This creator is not connected to a database record yet.');
+    const { data, error } = await supabase.from('reviews').update({
+      overall_rating: review.overallRating,
+      profanity: review.profanity,
+      substance_use: review.substanceUse,
+      age_level: review.ageLevel,
+      review_text: review.reviewText,
+      bias_text: review.biasText,
+      uses_ai: review.usesAi
+    }).eq('review_id', reviewId).eq('user_id', session.user.id)
+      .select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at').single();
+    if (error) throw new Error('Your review could not be updated. Please try again.');
+    const creatorName = appCreators.find(creator => creator.id === review.creatorId)?.name;
+    const updatedReview = {
+      ...formatReview(data, review.creatorId, creatorName),
+      authorUsername: profile?.username || session.user.user_metadata?.username || null,
+      authorAvatarUrl: profile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null
+    };
+    const nextReviews = reviews.map(existing => existing.id === updatedReview.id ? updatedReview : existing);
+    setReviews(nextReviews);
+    setAppCreators(currentCreators => creatorsWithReviewSummaries(currentCreators, nextReviews));
+    void supabase.functions.invoke('creator-ai', { body: { action: 'summarize_reviews', creatorId: databaseCreatorId } })
+      .then(({ error: summaryError }) => { if (!summaryError) setCreatorRefresh(value => value + 1); })
+      .catch(summaryError => console.error('AI review summary could not be refreshed:', summaryError));
+    return updatedReview;
   };
 
   const navigate=(next,id=null,reviewId=null)=>{
@@ -559,25 +627,34 @@ function App() {
     window.scrollTo(0,0);
   };
   const creator=appCreators.find(c=>c.id===selected);
+  useEffect(() => {
+    if (page !== 'profile' || !session?.user?.id || !creator?.databaseId || !supabase) return;
+    void supabase.rpc('record_creator_view', { p_creator_id: creator.databaseId }).then(({ error }) => {
+      if (error) console.error('Creator view could not be recorded:', error.message);
+    });
+  }, [page, creator?.databaseId, session?.user?.id]);
   const handleReviewVoteCountsChange = (reviewId, voteCounts) => {
     setReviews(current => current.map(review => review.id === reviewId ? { ...review, voteCounts } : review));
   };
   const shell=!['signup','login','complete-profile'].includes(page);
   if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
   return <>
-    {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture}/>}
+    {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} isAdmin={isAdmin} sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed(value => !value)}/>}
+    <div className={`${shell ? 'app-main with-sidebar' : 'app-main'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} creatorsLoading={creatorsLoading}/>}
-    {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user}/>}
+    {(page==='creators'||page==='family')&&<DiscoverCreators key={page} initialSearchType={page==='family'?'people':'creators'} navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user}/>}
     {page==='profile'&&(creator?<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>:<main className="page"><div className="empty"><h3>Creator not found</h3><p>There are no creators to show yet.</p><button className="secondary" onClick={() => navigate('creators')}>Discover creators</button></div></main>)}
     {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>}
     {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>}
     {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>}
     {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>}
     {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile} creators={appCreators} followingIds={followingIds}/>}
+    {page==='admin'&&session?.user&&<AdminUsers session={session} navigate={navigate} onAdminStatus={setIsAdmin}/>}
     {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged} onAvatarUpload={uploadAvatar} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} avatarUploading={avatarUploading} avatarError={avatarError} onCreatorsChanged={() => setCreatorRefresh(value => value + 1)}/>}
     {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected} user={session?.user}/>}
-    {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} submitReview={submitReview} creators={appCreators}/>}
+    {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} selectedReviewId={selectedReviewId} submitReview={submitReview} updateReview={updateReview} creators={appCreators} reviews={reviews} user={session.user}/>}
     {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}
+    </div>
   </>;
 }
 

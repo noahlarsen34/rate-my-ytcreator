@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut
+  Search, UserRound, ChevronRight, ChevronLeft, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles, ShieldCheck, Compass, UsersRound, LayoutDashboard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { recordUserSearch } from '../lib/searchHistory';
 
 export function Avatar({ creator, size = 'md' }) {
   return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}>{creator.thumbnailUrl ? <img src={creator.thumbnailUrl} alt="" referrerPolicy="no-referrer"/> : <span>{creator.initials}</span>}</div>;
@@ -12,30 +13,33 @@ export function Stars({ score, small = false }) {
   return <span className={`stars ${small ? 'small' : ''}`}><Star fill="currentColor" /> <b>{score.toFixed(1)}</b></span>;
 }
 
-export function ReviewAuthor({ review, navigate }) {
+export function ReviewAuthor({ review, navigate, currentUserId }) {
+  if (review.reviewSource === 'synthetic_demo') return <span className="review-author synthetic"><span className="review-author-avatar"><Sparkles size={15}/></span><b>{review.seedAuthorName || 'Demo reviewer'}</b></span>;
   if (!review.userId) return <span className="review-author unavailable"><span className="review-author-avatar"><UserRound size={16}/></span><b>Community member</b></span>;
   const name = review.authorUsername || 'Community member';
-  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate('user-profile', review.userId); }} aria-label={`View ${name}'s profile`}>
+  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate(review.userId === currentUserId ? 'dashboard' : 'user-profile', ...(review.userId === currentUserId ? [] : [review.userId])); }} aria-label={review.userId === currentUserId ? 'View your dashboard' : `View ${name}'s profile`}>
     <span className="review-author-avatar">{review.authorAvatarUrl ? <img src={review.authorAvatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={16}/>}</span>
     <b>{name.startsWith('@') ? name : `@${name}`}</b>
   </button>;
 }
 
-export function SearchBox({ value, setValue, onSubmit, compact = false, placeholder = 'Search creators or users', ariaLabel = 'Search creators or users' }) {
+export function SearchBox({ value, setValue, onSubmit, onKeyDown, onFocus, compact = false, placeholder = 'Search content creators', ariaLabel = 'Search content creators', combobox = false, expanded = false, controls, activeDescendant }) {
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
       <Search size={compact ? 18 : 23} />
-      <input value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+      <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={onKeyDown} onFocus={onFocus} placeholder={placeholder} aria-label={ariaLabel} role={combobox ? 'combobox' : undefined} aria-autocomplete={combobox ? 'list' : undefined} aria-expanded={combobox ? expanded : undefined} aria-controls={combobox ? controls : undefined} aria-activedescendant={combobox ? activeDescendant : undefined} />
       {!compact && <button>Search</button>}
     </form>
   );
 }
 
-export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl }) {
+export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl, isAdmin = false, sidebarCollapsed = false, onToggleSidebar }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [headerQuery, setHeaderQuery] = useState(query);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [recentSearchesOpen, setRecentSearchesOpen] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
   const suggestions = useMemo(() => {
     const term = headerQuery.trim().toLowerCase();
     return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 6) : [];
@@ -59,24 +63,42 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
     if (supabase) await supabase.auth.signOut();
     goTo('home');
   };
-  return (
+  const openRecentSearches = async () => {
+    if (!user?.id || !supabase) return;
+    setRecentSearchesOpen(true);
+    const { data, error } = await supabase.from('user_search_history').select('search').order('searched_at', { ascending: false }).limit(3);
+    if (!error) setRecentSearches((data || []).map(row => row.search).filter(Boolean));
+  };
+  const selectRecentSearch = search => {
+    setHeaderQuery(search);
+    setRecentSearchesOpen(false);
+    setSuggestionsOpen(false);
+    void recordUserSearch(search);
+    setQuery(search);
+    navigate('creators');
+  };
+  return <>
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
-      <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
-        <SearchBox compact value={headerQuery} setValue={value => { setHeaderQuery(value); setSuggestionsOpen(true); }} onSubmit={() => { setQuery(headerQuery); navigate('creators'); }} />
+      <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setSuggestionsOpen(false); setRecentSearchesOpen(false); } }}>
+        <SearchBox compact value={headerQuery} setValue={value => { setHeaderQuery(value); setSuggestionsOpen(true); setRecentSearchesOpen(false); }} onFocus={openRecentSearches} onSubmit={() => { setRecentSearchesOpen(false); void recordUserSearch(headerQuery); setQuery(headerQuery); navigate('creators'); }} />
+        {recentSearchesOpen && !headerQuery.trim() && recentSearches.length > 0 && <div className="recent-searches-dropdown" role="listbox" aria-label="Recent searches"><span className="recent-searches-heading">Recent searches</span>{recentSearches.map((search, index) => <button type="button" role="option" key={`${search}-${index}`} onMouseDown={event => event.preventDefault()} onClick={() => selectRecentSearch(search)}><Search size={15}/><span>{search}</span></button>)}</div>}
         {suggestionsOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
-          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHeaderQuery(creator.name); setSuggestionsOpen(false); setQuery(creator.name); navigate('creators'); }}>
+          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHeaderQuery(creator.name); setSuggestionsOpen(false); void recordUserSearch(creator.name); setQuery(creator.name); navigate('creators'); }}>
             <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
           </button>)}
         </div>}
       </div>
       <nav className={mobileNavOpen ? 'open' : ''}>
-        <button onClick={() => goTo('creators')}>Discover</button>
+        <button className="desktop-nav-link" onClick={() => goTo('creators')}>Explore creators</button>
+        <button className="desktop-nav-link" onClick={() => goTo('family')}>Family connections</button>
+        <button className="desktop-nav-link" onClick={() => goTo('dashboard')}>My dashboard</button>
         {user ? <div className="account-menu" ref={accountMenuRef}>
           <span className="account-avatar">{avatarUrl ? <img src={avatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={18}/>}</span>
           <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>{displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
           {accountMenuOpen && <div className="account-dropdown" role="menu">
-            <button role="menuitem" onClick={() => goTo('dashboard')}>Dashboard</button>
+            <button role="menuitem" onClick={() => goTo('dashboard')}><LayoutDashboard size={17}/> Dashboard</button>
+            {isAdmin&&<button role="menuitem" onClick={() => goTo('admin')}><ShieldCheck size={17}/> Admin</button>}
             <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
             <button className="dropdown-logout" role="menuitem" onClick={logout}><LogOut size={17}/> Log out</button>
           </div>}
@@ -84,7 +106,15 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
       </nav>
       <button className="menu" aria-expanded={mobileNavOpen} aria-label="Toggle navigation menu" onClick={() => setMobileNavOpen(!mobileNavOpen)}><Menu /></button>
     </header>
-  );
+    <aside className={`primary-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} aria-label="Main navigation">
+      <button type="button" className="sidebar-toggle" onClick={onToggleSidebar} aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'} title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}>{sidebarCollapsed ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}</button>
+      <span className="sidebar-label">MENU</span>
+      <button className="sidebar-link" title="Explore creators" onClick={() => goTo('creators')}><Compass size={19}/><span>Explore creators</span></button>
+      <button className="sidebar-link" title="Family connections" onClick={() => goTo('family')}><UsersRound size={19}/><span>Family connections</span></button>
+      <button className="sidebar-link" title="My dashboard" onClick={() => goTo('dashboard')}><LayoutDashboard size={19}/><span>My dashboard</span></button>
+      {isAdmin&&<button className="sidebar-link" title="Admin" onClick={() => goTo('admin')}><ShieldCheck size={19}/><span>Admin</span></button>}
+    </aside>
+  </>;
 }
 
 export function CreatorCard({ creator, navigate, wide = false }) {
