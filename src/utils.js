@@ -6,12 +6,15 @@ export function formatReview(review, creatorId, creatorName) {
     createdAt: review.created_at,
     creator: creatorName ?? 'Unknown creator',
     score: Number(review.overall_rating),
-    profanity: Number(review.profanity),
-    substance: Number(review.substance_use),
+    profanity: review.profanity === null || review.profanity === undefined ? null : Number(review.profanity),
+    substance: review.substance_use === null || review.substance_use === undefined ? null : Number(review.substance_use),
     ageLevel: review.age_level,
     usesAi: review.uses_ai,
     text: review.review_text,
     bias: review.bias_text,
+    reviewSource: review.review_source || 'community',
+    seedAuthorName: review.seed_author_name || null,
+    seedBatchId: review.seed_batch_id || null,
     date: new Date(review.created_at).toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
@@ -55,6 +58,7 @@ export function pageFromPathname() {
   if (path === '/login') return 'login';
   if (path === '/signup') return 'signup';
   if (path === '/dashboard') return 'dashboard';
+  if (path === '/admin') return 'admin';
   if (path === '/settings') return 'settings';
   if (path.startsWith('/users/')) return 'user-profile';
   if (path === '/rate') return 'rate';
@@ -77,6 +81,6 @@ export function pathForPage(page, id = null) {
   if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
   if (page === 'user-profile') return id ? `/users/${encodeURIComponent(id)}` : '/';
   if (page === 'privacy' || page === 'terms') return `/${page}`;
-  if (['login', 'signup', 'dashboard', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
+  if (['login', 'signup', 'dashboard', 'admin', 'settings', 'rate', 'complete-profile'].includes(page)) return `/${page}`;
   return '/';
 }

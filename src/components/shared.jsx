@@ -1,39 +1,46 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut
+  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles, ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function Avatar({ creator, size = 'md' }) {
-  return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}>{creator.thumbnailUrl ? <img src={creator.thumbnailUrl} alt="" referrerPolicy="no-referrer"/> : <span>{creator.initials}</span>}<Play size={size === 'lg' ? 28 : 15} fill="currentColor" /></div>;
+  return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}>{creator.thumbnailUrl ? <img src={creator.thumbnailUrl} alt="" referrerPolicy="no-referrer"/> : <span>{creator.initials}</span>}</div>;
 }
 
 export function Stars({ score, small = false }) {
   return <span className={`stars ${small ? 'small' : ''}`}><Star fill="currentColor" /> <b>{score.toFixed(1)}</b></span>;
 }
 
-export function ReviewAuthor({ review, navigate }) {
+export function ReviewAuthor({ review, navigate, currentUserId }) {
+  if (review.reviewSource === 'synthetic_demo') return <span className="review-author synthetic"><span className="review-author-avatar"><Sparkles size={15}/></span><b>{review.seedAuthorName || 'Demo reviewer'}</b></span>;
   if (!review.userId) return <span className="review-author unavailable"><span className="review-author-avatar"><UserRound size={16}/></span><b>Community member</b></span>;
   const name = review.authorUsername || 'Community member';
-  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate('user-profile', review.userId); }} aria-label={`View ${name}'s profile`}>
+  return <button type="button" className="review-author" onClick={event => { event.stopPropagation(); navigate(review.userId === currentUserId ? 'dashboard' : 'user-profile', ...(review.userId === currentUserId ? [] : [review.userId])); }} aria-label={review.userId === currentUserId ? 'View your dashboard' : `View ${name}'s profile`}>
     <span className="review-author-avatar">{review.authorAvatarUrl ? <img src={review.authorAvatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={16}/>}</span>
     <b>{name.startsWith('@') ? name : `@${name}`}</b>
   </button>;
 }
 
-export function SearchBox({ value, setValue, onSubmit, compact = false, placeholder = 'Search creators or users', ariaLabel = 'Search creators or users' }) {
+export function SearchBox({ value, setValue, onSubmit, onKeyDown, compact = false, placeholder = 'Search creators or users', ariaLabel = 'Search creators or users', combobox = false, expanded = false, controls, activeDescendant }) {
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
       <Search size={compact ? 18 : 23} />
-      <input value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+      <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={onKeyDown} placeholder={placeholder} aria-label={ariaLabel} role={combobox ? 'combobox' : undefined} aria-autocomplete={combobox ? 'list' : undefined} aria-expanded={combobox ? expanded : undefined} aria-controls={combobox ? controls : undefined} aria-activedescendant={combobox ? activeDescendant : undefined} />
       {!compact && <button>Search</button>}
     </form>
   );
 }
 
-export function Header({ navigate, query, setQuery, user, profileUsername, avatarUrl }) {
+export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl, isAdmin = false }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [headerQuery, setHeaderQuery] = useState(query);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const suggestions = useMemo(() => {
+    const term = headerQuery.trim().toLowerCase();
+    return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 6) : [];
+  }, [creators, headerQuery]);
   const accountMenuRef = useRef(null);
   const displayName = profileUsername || user?.user_metadata?.username || user?.user_metadata?.first_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account';
   useEffect(() => {
@@ -56,7 +63,14 @@ export function Header({ navigate, query, setQuery, user, profileUsername, avata
   return (
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
-      <div className="nav-search"><SearchBox compact value={query} setValue={setQuery} onSubmit={() => navigate('creators')} /></div>
+      <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
+        <SearchBox compact value={headerQuery} setValue={value => { setHeaderQuery(value); setSuggestionsOpen(true); }} onSubmit={() => { setQuery(headerQuery); navigate('creators'); }} />
+        {suggestionsOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
+          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHeaderQuery(creator.name); setSuggestionsOpen(false); setQuery(creator.name); navigate('creators'); }}>
+            <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
+          </button>)}
+        </div>}
+      </div>
       <nav className={mobileNavOpen ? 'open' : ''}>
         <button onClick={() => goTo('creators')}>Discover</button>
         {user ? <div className="account-menu" ref={accountMenuRef}>
@@ -64,6 +78,7 @@ export function Header({ navigate, query, setQuery, user, profileUsername, avata
           <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>{displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
           {accountMenuOpen && <div className="account-dropdown" role="menu">
             <button role="menuitem" onClick={() => goTo('dashboard')}>Dashboard</button>
+            {isAdmin&&<button role="menuitem" onClick={() => goTo('admin')}><ShieldCheck size={17}/> Admin</button>}
             <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
             <button className="dropdown-logout" role="menuitem" onClick={logout}><LogOut size={17}/> Log out</button>
           </div>}
@@ -135,4 +150,4 @@ export function ReviewVotes({ review, user, navigate, onVoteCountsChange }) {
   return <div className="review-votes" ref={voteControlsRef} aria-label="Review votes"><button type="button" disabled={saving} className={vote === 'up' ? 'selected' : ''} aria-label={`Upvote review (${counts.up})`} aria-pressed={vote === 'up'} onClick={() => choose('up')}><ThumbsUp size={19} fill={vote === 'up' ? 'currentColor' : 'none'}/><span>{counts.up}</span></button><button type="button" disabled={saving} className={vote === 'down' ? 'selected' : ''} aria-label={`Downvote review (${counts.down})`} aria-pressed={vote === 'down'} onClick={() => choose('down')}><ThumbsDown size={19} fill={vote === 'down' ? 'currentColor' : 'none'}/><span>{counts.down}</span></button>{loginPromptFor && <div className={`vote-login-prompt ${loginPromptFor}`} role="status"><span>Log in to leave a vote.</span><button type="button" onClick={() => navigate('login')}>Log in</button></div>}{voteError && <span className="vote-error" role="alert">{voteError}</span>}</div>;
 }
 
-export function RangeField({label,low,high,value,set}) {return <label className="range-label"><span>{label}<b>{value}/5</b></span><input type="range" min="1" max="5" value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}
+export function RangeField({label,low,high,value,set,min='1',max='5'}) {return <label className="range-label"><span>{label}<b>{value}/{max}</b></span><input type="range" min={min} max={max} value={value} onChange={e=>set(e.target.value)}/><small><span>{low}</span><span>{high}</span></small></label>}

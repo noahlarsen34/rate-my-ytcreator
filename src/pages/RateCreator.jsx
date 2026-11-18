@@ -1,22 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronRight, Search, Star } from 'lucide-react';
 
-export function RateCreator({ navigate, selectedId, submitReview, creators }) {
+export function RateCreator({ navigate, selectedId, selectedReviewId, submitReview, updateReview, creators, reviews = [], user }) {
   const selectedCreator = creators.find(creator => creator.id === selectedId);
-  const [selectedCreatorId, setSelectedCreatorId] = useState(selectedCreator?.id || '');
-  const [creatorQuery, setCreatorQuery] = useState(selectedCreator?.name || '');
+  const editingReview = reviews.find(review => String(review.id) === String(selectedReviewId) && review.userId === user?.id);
+  const [selectedCreatorId, setSelectedCreatorId] = useState(editingReview?.creatorId || selectedCreator?.id || '');
+  const [creatorQuery, setCreatorQuery] = useState(editingReview?.creator || selectedCreator?.name || '');
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
-  const [overallRating, setOverallRating] = useState(0);
+  const [overallRating, setOverallRating] = useState(editingReview?.score || 0);
   const [hoveredRating, setHoveredRating] = useState(0);
-  const [wordCount, setWordCount] = useState(0);
+  const [wordCount, setWordCount] = useState(editingReview?.text?.trim().split(/\s+/).filter(Boolean).length || 0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [values, setValues] = useState({ profanity: '1', substance: '1' });
+  const [values, setValues] = useState({ profanity: String(editingReview?.profanity ?? 0), substance: String(editingReview?.substance ?? 0) });
   const creatorSearchRef = useRef(null);
   const filteredCreators = useMemo(() => {
     const search = creatorQuery.trim().toLowerCase();
     return creators.filter(creator => !search || `${creator.name} ${creator.handle} ${creator.topic}`.toLowerCase().includes(search));
   }, [creatorQuery, creators]);
+  const existingReview = editingReview ? null : reviews.find(review => review.userId === user?.id && review.creatorId === selectedCreatorId);
 
   const submit = async event => {
     event.preventDefault();
@@ -24,6 +26,10 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
       setError('Search for and select a creator before submitting.');
       creatorSearchRef.current?.focus();
       setCreatorPickerOpen(true);
+      return;
+    }
+    if (existingReview) {
+      setError('You can only have one review per creator. Edit your existing review instead.');
       return;
     }
     if (!overallRating) {
@@ -36,7 +42,7 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
     const form = new FormData(event.currentTarget);
 
     try {
-      await submitReview({
+      const reviewData = {
         creatorId: selectedCreatorId,
         overallRating,
         profanity: Number(values.profanity),
@@ -45,7 +51,9 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
         reviewText: form.get('review'),
         biasText: form.get('bias') || '',
         usesAi: form.get('usesAi')
-      });
+      };
+      if (editingReview) await updateReview(editingReview.id, reviewData);
+      else await submitReview(reviewData);
       navigate('profile', selectedCreatorId);
     } catch (submitError) {
       setError(submitError.message || 'Your rating could not be submitted. Please try again.');
@@ -64,8 +72,8 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
     <button className="back" onClick={() => navigate(selectedId ? 'profile' : 'dashboard', selectedId)}><ArrowLeft size={17}/> Back</button>
     <div className="form-heading">
       <span className="kicker">SHARE YOUR EXPERIENCE</span>
-      <h1>Rate a content creator</h1>
-      <p>Share an honest, specific review to help viewers decide what to watch.</p>
+      <h1>{editingReview ? 'Edit your review' : 'Rate a content creator'}</h1>
+      <p>{editingReview ? 'Update your rating and review below.' : 'Share an honest, specific review to help viewers decide what to watch.'}</p>
     </div>
 
     <form className="rating-form" onSubmit={submit}>
@@ -78,6 +86,7 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
             id="creator-search"
             type="search"
             value={creatorQuery}
+            disabled={Boolean(editingReview)}
             placeholder="Search creators by name or topic"
             autoComplete="off"
             role="combobox"
@@ -111,7 +120,12 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
         </div>
         {selectedCreatorId && <p className="selected-creator">Reviewing: <b>{creators.find(creator => creator.id === selectedCreatorId)?.name}</b></p>}
 
-        <div className="overall-rating" role="group" aria-label="Overall creator rating">
+        {existingReview && <div className="submit-error" role="alert">
+          <p>You can only have one review per creator. Edit your existing review instead.</p>
+          <button type="button" className="secondary" onClick={() => navigate('profile', selectedCreatorId, existingReview.id)}>View your review</button>
+        </div>}
+
+        {!existingReview && <div className="overall-rating" role="group" aria-label="Overall creator rating">
           <div><h2>Your overall rating</h2><p>How would you rate this creator overall?</p></div>
           <div className="star-rating" onMouseLeave={() => setHoveredRating(0)}>
             {[1, 2, 3, 4, 5].map(star => {
@@ -142,13 +156,13 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
             })}
           </div>
           <span className="star-rating-value" aria-live="polite">{overallRating ? `${overallRating} out of 5 stars` : 'Select a rating'}</span>
-        </div>
+        </div>}
       </section>
 
-      <section className="panel">
+      {!existingReview && <section className="panel">
         <h2>Your review</h2>
         <label className="review-text-label"><span className="field-label">What should new viewers know?</span><span className="word-count">{wordCount}/150 words</span>
-          <textarea name="review" required rows="6" placeholder="What stands out about this creator? Share a specific example or experience." onChange={event => {
+          <textarea name="review" required rows="6" defaultValue={editingReview?.text || ''} placeholder="What stands out about this creator? Share a specific example or experience." onChange={event => {
             const words = event.target.value.trim().split(/\s+/).filter(Boolean);
             if (words.length <= 150) setWordCount(words.length);
             else {
@@ -159,11 +173,11 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
         </label>
         <label className="bias-question">Any recurring sponsors or viewpoints viewers should know about?
           <small>For example, repeated brand sponsorships or a consistent ideological perspective. Leave blank if nothing stands out.</small>
-          <textarea name="bias" rows="3" placeholder="Share any patterns you have noticed (optional)" />
+          <textarea name="bias" rows="3" defaultValue={editingReview?.bias || ''} placeholder="Share any patterns you have noticed (optional)" />
         </label>
-      </section>
+      </section>}
 
-      <section className="panel">
+      {!existingReview && <section className="panel">
         <h2>Content details</h2>
         <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label>
         <label>Profanity<select value={values.profanity} onChange={event => setValues(current => ({ ...current, profanity: event.target.value }))}><option value="1">None</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very frequently</option></select></label>
@@ -171,11 +185,11 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
           <label>How often does the content show or discuss alcohol, drugs, or vaping?<select value={values.substance} onChange={event => setValues(current => ({ ...current, substance: event.target.value }))}><option value="1">Never</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very often</option></select></label>
           <p className="field-help">Choose based on the videos you have seen.</p>
         </div>
-        <label>Does the creator use AI?<select name="usesAi" required defaultValue=""><option value="" disabled>Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>
-      </section>
+        <label>Does the creator use AI?<select name="usesAi" required defaultValue={editingReview?.usesAi || ''}><option value="" disabled>Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>
+      </section>}
 
-      {error && <p className="submit-error" role="alert">{error}</p>}
-      <button className="primary submit-rating" disabled={submitting || creators.length === 0}>{submitting ? 'Submitting...' : <>Submit review <ChevronRight size={18}/></>}</button>
+      {!existingReview && error && <p className="submit-error" role="alert">{error}</p>}
+      {!existingReview && <button className="primary submit-rating" disabled={submitting || creators.length === 0}>{submitting ? (editingReview ? 'Saving...' : 'Submitting...') : <>{editingReview ? 'Save changes' : 'Submit review'} <ChevronRight size={18}/></>}</button>}
     </form>
   </main>;
 }

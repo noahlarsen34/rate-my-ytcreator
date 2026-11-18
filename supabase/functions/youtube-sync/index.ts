@@ -110,6 +110,72 @@ async function creatorRowsForChannels(admin: any, channelIds: string[]) {
   return creators;
 }
 
+// Categorization is invoked only for imported creators that still have the
+// Uncategorized type. The internal secret prevents direct browser invocation.
+// deno-lint-ignore no-explicit-any
+async function categorizeUncategorizedCreators(admin: any, creatorIds: string[], authorization: string) {
+  const uniqueIds = [...new Set(creatorIds.map(String).filter(id => /^\d+$/.test(id)))];
+  if (!uniqueIds.length) return { categorized: 0, failed: 0 };
+
+  const [{ data: types, error: typesError }, { data: creators, error: creatorsError }] = await Promise.all([
+    admin.from('channel_types').select('type_id, type_name').order('type_id'),
+    admin.from('content_creators').select('creator_id, type_id').in('creator_id', uniqueIds),
+  ]);
+  if (typesError || creatorsError) {
+    console.error('Uncategorized creators could not be loaded for AI categorization:', typesError || creatorsError);
+    return { categorized: 0, failed: uniqueIds.length };
+  }
+
+  const uncategorized = (types || []).find((type: { type_id: number; type_name: string }) =>
+    String(type.type_name || '').trim().toLowerCase() === 'uncategorized'
+  );
+  if (!uncategorized) return { categorized: 0, failed: uniqueIds.length };
+
+  const pendingIds = (creators || [])
+    .filter((creator: { creator_id: number; type_id: number }) => String(creator.type_id) === String(uncategorized.type_id))
+    .map((creator: { creator_id: number }) => String(creator.creator_id));
+  if (!pendingIds.length) return { categorized: 0, failed: 0 };
+
+  let baseUrl: string;
+  let anonKey: string;
+  let internalSecret: string;
+  try {
+    baseUrl = requiredEnv('SUPABASE_URL').replace(/\/$/, '');
+    anonKey = requiredEnv('SUPABASE_ANON_KEY');
+    internalSecret = requiredEnv('CREATOR_AI_INTERNAL_SECRET');
+  } catch (error) {
+    console.error('AI categorization is not configured:', errorMessage(error));
+    return { categorized: 0, failed: pendingIds.length };
+  }
+  let categorized = 0;
+  let failed = 0;
+  for (let index = 0; index < pendingIds.length; index += 5) {
+    const results = await Promise.all(pendingIds.slice(index, index + 5).map(async creatorId => {
+      try {
+        const response = await fetch(`${baseUrl}/functions/v1/creator-ai`, {
+          method: 'POST',
+          headers: {
+            Authorization: authorization,
+            apikey: anonKey,
+            'x-creator-ai-internal': internalSecret,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'categorize', creatorId }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result?.error) throw new Error(result?.error || 'Categorization request failed.');
+        return true;
+      } catch (error) {
+        console.error(`Creator ${creatorId} could not be categorized:`, errorMessage(error));
+        return false;
+      }
+    }));
+    categorized += results.filter(Boolean).length;
+    failed += results.filter(result => !result).length;
+  }
+  return { categorized, failed };
+}
+
 // deno-lint-ignore no-explicit-any
 async function refreshImportedCreatorStats(admin: any, accessToken: string) {
   const creators: Array<{ creator_id: string; youtube_channel_id: string; subscriber_count: number | string | null }> = [];
@@ -276,6 +342,17 @@ Deno.serve(async request => {
       }
 
       const creators = await creatorRowsForChannels(admin, authorizedIds);
+      const newCreatorIds = new Set(newIds);
+      const newCreatorIdsToCategorize = creators
+        .filter(creator => newCreatorIds.has(creator.youtube_channel_id))
+        .map(creator => creator.creator_id);
+      if (newCreatorIdsToCategorize.length) {
+        EdgeRuntime.waitUntil(
+          categorizeUncategorizedCreators(admin, newCreatorIdsToCategorize, authorization)
+            .then(result => console.log('Import categorization finished:', result))
+            .catch(error => console.error('Import categorization failed:', errorMessage(error))),
+        );
+      }
       if (creators.length) {
         const follows = creators.map(creator => ({ user_id: userId, creator_id: creator.creator_id, source: 'youtube' }));
         for (let index = 0; index < follows.length; index += 100) {
@@ -283,7 +360,7 @@ Deno.serve(async request => {
           if (followError) throw followError;
         }
       }
-      return json({ importedCreators: channels.length, followedCreators: creators.length, skippedCreators: authorizedIds.length - channels.length });
+      return json({ importedCreators: channels.length, followedCreators: creators.length, skippedCreators: authorizedIds.length - channels.length, categorizationScheduled: newCreatorIdsToCategorize.length > 0 });
     }
 
     if (body.action !== 'sync') return json({ error: 'Unknown action.' }, 400);
@@ -311,8 +388,16 @@ Deno.serve(async request => {
     }
     const syncedAt = new Date().toISOString();
     const creatorStats = await refreshImportedCreatorStats(admin, accessToken);
+    const creatorIdsToCategorize = matchedCreators.map(creator => creator.creator_id);
+    if (creatorIdsToCategorize.length) {
+      EdgeRuntime.waitUntil(
+        categorizeUncategorizedCreators(admin, creatorIdsToCategorize, authorization)
+          .then(result => console.log('Sync categorization finished:', result))
+          .catch(error => console.error('Sync categorization failed:', errorMessage(error))),
+      );
+    }
     const { error: syncError } = await admin.from('youtube_connections').update({ last_synced_at: syncedAt, updated_at: syncedAt }).eq('user_id', userId); if (syncError) throw syncError;
-    return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length, updatedCreatorStats: creatorStats.updated, unchangedCreatorStats: creatorStats.unchanged, unavailableCreatorStats: creatorStats.unavailable });
+    return json({ connected: true, lastSyncedAt: syncedAt, followedCreators: matchedCreators.length, totalSubscriptions: channelIds.length, matchedCreators: matchedCreators.length, unmatchedCreators: channelIds.length - matchedCreators.length, updatedCreatorStats: creatorStats.updated, unchangedCreatorStats: creatorStats.unchanged, unavailableCreatorStats: creatorStats.unavailable, categorizationScheduled: creatorIdsToCategorize.length > 0 });
   } catch (error) {
     const message = errorMessage(error);
     console.error('youtube-sync failed:', message, error);
