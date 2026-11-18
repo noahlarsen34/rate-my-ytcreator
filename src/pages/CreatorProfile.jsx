@@ -125,6 +125,8 @@ export function Profile({ creator, navigate, reviews, reviewsLoading, reviewsErr
   const hasRatings = creator.reviews > 0;
   const ratingBreakdown = creator.ratingBreakdown || Array(10).fill(0);
   const formatStat = value => value === null || value === undefined ? 'Not available' : Number(value).toLocaleString();
+  const frequencyLabel = value => ['None', 'Rarely', 'Sometimes', 'Often', 'Frequently'][Math.max(0, Math.min(4, Math.round(Number(value) || 1) - 1))];
+  const suitabilityScore = value => Math.max(0, Math.min(5, 5 - ((Number(value) - 1) * 1.25)));
   const openReportForReview = review => {
     if (!user) {
       setReportLoginPrompt(false);

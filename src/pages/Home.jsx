@@ -77,9 +77,9 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
 
   return <main>
     <section className="hero">
-      <div className="eyebrow"><Sparkles size={15} /> Real people. Honest ratings.</div>
+      <div className="eyebrow"><Sparkles size={15} /> Make informed choices about online content</div>
       <h1>Know what’s worth<br /><em>your watch time.</em></h1>
-      <p>Discover creators you’ll love—and get the full picture before you hit subscribe.</p>
+     <p>Check community insights on creators before you watch or subscribe. For young viewers and the adults who support them.</p>
       <div className="hero-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
         <SearchBox value={homeQuery} setValue={value => { setHomeQuery(value); setSuggestionsOpen(true); }} onSubmit={() => searchCreators(homeQuery)} />
         {suggestionsOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
@@ -104,6 +104,6 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
       <p>Google user data is not sold, used for advertising or credit decisions, used to train artificial intelligence models, or used to create or distribute AI-generated non-consensual intimate imagery.</p>
       <button className="text-button" onClick={() => navigate('privacy')}>Read the Rate My Creator Privacy Policy <ChevronRight size={18}/></button>
     </section>
-    <section className="cta"><div><span className="kicker">YOUR VOICE MATTERS</span><h2>Watched something worth sharing?</h2><p>Help someone else decide what deserves their next click.</p></div><button className="primary" onClick={() => navigate('rate')}>Write a rating <ChevronRight size={18} /></button></section>
+    <section className="cta"><div><span className="kicker">HELP OTHERS MAKE INFORMED CHOICES</span><h2>Notice something viewers should know?</h2><p>Share a specific review to help young viewers and families make informed choices.</p></div><button className="primary" onClick={() => navigate('rate')}>Write a rating <ChevronRight size={18} /></button></section>
   </main>;
 }

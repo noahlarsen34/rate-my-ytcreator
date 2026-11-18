@@ -93,6 +93,7 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
     const current = totals.get(review.creatorId) || {
       total: 0,
       profanity: 0,
+      profanityCount: 0,
       substance: 0,
       profanityCount: 0,
       substanceCount: 0,
@@ -103,12 +104,14 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
       scores: Array(10).fill(0)
     };
     current.total += score;
-    if (review.profanity !== null && Number.isFinite(Number(review.profanity))) {
-      current.profanity += Number(review.profanity);
+    const profanity = Number(review.profanity);
+    if (Number.isFinite(profanity) && profanity >= 1 && profanity <= 5) {
+      current.profanity += profanity;
       current.profanityCount += 1;
     }
-    if (review.substance !== null && Number.isFinite(Number(review.substance))) {
-      current.substance += Number(review.substance);
+    const substance = Number(review.substance);
+    if (Number.isFinite(substance) && substance >= 1 && substance <= 5) {
+      current.substance += substance;
       current.substanceCount += 1;
     }
     current.count += 1;

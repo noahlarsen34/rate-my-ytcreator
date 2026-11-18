@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronRight, Search, Star } from 'lucide-react';
-import { RangeField } from '../components/shared';
 
 export function RateCreator({ navigate, selectedId, selectedReviewId, submitReview, updateReview, creators, reviews = [], user }) {
   const selectedCreator = creators.find(creator => creator.id === selectedId);
@@ -180,11 +179,11 @@ export function RateCreator({ navigate, selectedId, selectedReviewId, submitRevi
 
       {!existingReview && <section className="panel">
         <h2>Content details</h2>
-        <label>Overall age-appropriateness<select name="ageLevel" required defaultValue={editingReview?.ageLevel || ''}><option value="" disabled>Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label>
-        <RangeField label="Profanity" low="None" high="Very frequent" min="0" value={values.profanity} set={value => setValues(current => ({ ...current, profanity: value }))}/>
+        <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label>
+        <label>Profanity<select value={values.profanity} onChange={event => setValues(current => ({ ...current, profanity: event.target.value }))}><option value="1">None</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very frequently</option></select></label>
         <div className="rating-range-field">
-          <RangeField label="How often does the content show or discuss alcohol, drugs, or vaping?" low="Never" high="Very often" min="0" value={values.substance} set={value => setValues(current => ({ ...current, substance: value }))}/>
-          <p className="field-help">Count videos that show or talk about these substances.</p>
+          <label>How often does the content show or discuss alcohol, drugs, or vaping?<select value={values.substance} onChange={event => setValues(current => ({ ...current, substance: event.target.value }))}><option value="1">Never</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very often</option></select></label>
+          <p className="field-help">Choose based on the videos you have seen.</p>
         </div>
         <label>Does the creator use AI?<select name="usesAi" required defaultValue={editingReview?.usesAi || ''}><option value="" disabled>Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>
       </section>}

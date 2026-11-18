@@ -128,8 +128,8 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
   return <main className={`page discover-page ${searchType === 'people' ? 'people-mode' : ''}`}>
     <div className="page-heading">
       <span className="kicker">DISCOVER</span>
-      <h1>{searchType === 'creators' ? 'Find your next favorite creator' : 'Find people you know'}</h1>
-      <p>{searchType === 'creators' ? 'Explore honest community ratings across every kind of content.' : 'Search by username and send a connection request.'}</p>
+      <h1>{searchType === 'creators' ? 'Check a creator before you watch' : 'Connect with family and friends'}</h1>
+      <p>{searchType === 'creators' ? 'Explore community ratings and content insights to make informed viewing choices.' : 'Connect with people you know and, when they choose to share, see their creator subscriptions.'}</p>
     </div>
     <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
       <SearchBox compact={searchType === 'people'} value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
