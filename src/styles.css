@@ -121,3 +121,4 @@ html,body,#root{background:#0c0c0e}
 .dashboard-recommendations .recommendation-heading{margin-bottom:18px}
 .recommendation-grid{gap:18px}
 .dashboard-profile-preview{margin-top:18px}
+.home-explore-card{display:block;min-height:120px}.home-explore-heading{display:flex;align-items:center;gap:12px}.home-explore-heading>span:last-child b,.home-explore-heading>span:last-child small{display:block}.home-explore-heading>span:last-child small{margin-top:5px;color:#9a9aa3;font-size:12px;line-height:1.45}.home-explore-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;margin-top:10px}.home-explore-links .home-explore-link{padding:7px 0;font-size:12px}@media(max-width:600px){.home-explore-links{grid-template-columns:1fr}}

@@ -76,6 +76,13 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
     .slice()
     .sort((first, second) => second.score - first.score || second.reviews - first.reviews || first.name.localeCompare(second.name))
     .slice(0, 3);
+  const topCategories = [...creators.reduce((counts, creator) => {
+    if (creator.category) counts.set(creator.category, (counts.get(creator.category) || 0) + 1);
+    return counts;
+  }, new Map())]
+    .sort((first, second) => second[1] - first[1] || first[0].localeCompare(second[0]))
+    .slice(0, 3)
+    .map(([category]) => category);
 
   return <main>
     <section className="hero">
@@ -91,14 +98,8 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
         </div>}
       </div>
     </section>
-    <section className="section home-explore-layout">
-      <aside className="home-explore-sidebar"><span className="kicker">EXPLORE</span><h2>Explore creators</h2><p>Browse community ratings by topic.</p><button type="button" className="home-explore-link" onClick={() => searchCreators('')}>All creators <ChevronRight size={16}/></button>{[...new Set(creators.map(creator => creator.category).filter(Boolean))].slice(0, 8).map(category=><button type="button" className="home-explore-link" key={category} onClick={()=>searchCreators(category)}>{category}<ChevronRight size={16}/></button>)}</aside>
-      <div className="home-featured-creators"><section className="section featured">
-      <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Creators in the community</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
-      {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : creators.length ? <div className="card-grid">{creators.slice(0, 3).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>No creators yet</h3><p>Creators will appear here when they are added to the community.</p></div>}
-    </section></div></section>
     <section className="home-pathways" aria-label="Choose a starting point">
-      <button className="home-pathway-card" onClick={() => navigate('creators')}><span className="home-pathway-icon"><Search size={20}/></span><span><b>Check a creator</b><small>Explore community ratings and content insights before you watch.</small></span><ChevronRight size={19}/></button>
+      <div className="home-pathway-card home-explore-card"><span className="home-explore-heading"><span className="home-pathway-icon"><Search size={20}/></span><span><b>Explore creators</b><small>Browse community ratings by topic.</small></span></span><div className="home-explore-links"><button type="button" className="home-explore-link" onClick={() => searchCreators('')}>All creators <ChevronRight size={16}/></button>{topCategories.map(category=><button type="button" className="home-explore-link" key={category} onClick={()=>searchCreators(category)}>{category}<ChevronRight size={16}/></button>)}</div></div>
       <button className="home-pathway-card" onClick={() => navigate('family')}><span className="home-pathway-icon"><UsersRound size={20}/></span><span><b>Connect with family</b><small>Share creator subscriptions with a parent or teen.</small></span><ChevronRight size={19}/></button>
     </section>
     <section className="section featured">
