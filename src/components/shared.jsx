@@ -97,8 +97,6 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
           <span className="account-avatar">{avatarUrl ? <img src={avatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={18}/>}</span>
           <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>{displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
           {accountMenuOpen && <div className="account-dropdown" role="menu">
-            <button role="menuitem" onClick={() => goTo('dashboard')}><LayoutDashboard size={17}/> Dashboard</button>
-            {isAdmin&&<button role="menuitem" onClick={() => goTo('admin')}><ShieldCheck size={17}/> Admin</button>}
             <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
             <button className="dropdown-logout" role="menuitem" onClick={logout}><LogOut size={17}/> Log out</button>
           </div>}
