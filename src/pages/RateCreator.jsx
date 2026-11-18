@@ -179,11 +179,12 @@ export function RateCreator({ navigate, selectedId, selectedReviewId, submitRevi
 
       {!existingReview && <section className="panel">
         <h2>Content details</h2>
-        <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="Under 8">Under 8</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option><option value="All ages">All ages</option></select></label>
-        <label>Profanity<select value={values.profanity} onChange={event => setValues(current => ({ ...current, profanity: event.target.value }))}><option value="1">None</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very frequently</option></select></label>
+        <p className="content-details-intro">These details give families a quick guide to age fit and content themes. Base your answers on videos you have actually watched.</p>
+        <label>Recommended age level<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="Under 8">Under 8</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option><option value="All ages">All ages</option></select><small className="field-help">Choose the youngest age group you think this creator’s content is generally suitable for.</small></label>
+        <label>How often does this creator use profanity?<select value={values.profanity} onChange={event => setValues(current => ({ ...current, profanity: event.target.value }))}><option value="1">None</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very frequently</option></select><small className="field-help">This helps families understand how often strong language may come up.</small></label>
         <div className="rating-range-field">
           <label>How often does the content show or discuss alcohol, drugs, or vaping?<select value={values.substance} onChange={event => setValues(current => ({ ...current, substance: event.target.value }))}><option value="1">Never</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very often</option></select></label>
-          <p className="field-help">Choose based on the videos you have seen.</p>
+          <p className="field-help">This helps families spot substance-related themes. Individual videos may vary.</p>
         </div>
         <label>Does the creator use AI?<select name="usesAi" required defaultValue={editingReview?.usesAi || ''}><option value="" disabled>Choose one</option><option>Yes</option><option>No</option><option>Unsure</option></select></label>
       </section>}
