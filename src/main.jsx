@@ -30,7 +30,7 @@ const cleanYouTubeDescription = value => {
   if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
-const returnablePages = new Set(['home', 'creators', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'admin', 'settings', 'rate']);
+const returnablePages = new Set(['home', 'creators', 'family', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'admin', 'settings', 'rate']);
 const savedPageDestination = () => {
   try {
     const destination = JSON.parse(window.localStorage.getItem('lastPageDestination'));
@@ -153,6 +153,7 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
 };
 
 function App() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [page,setPage]=useState(pageFromPathname), [selected,setSelected]=useState(() => selectedIdFromPathname() || window.history.state?.selected || null), [selectedReviewId,setSelectedReviewId]=useState(() => window.history.state?.reviewId || null), [query,setQuery]=useState(''), [session,setSession]=useState(null), [authReady,setAuthReady]=useState(!isSupabaseConfigured), [profile,setProfile]=useState(null), [profileReady,setProfileReady]=useState(!isSupabaseConfigured), [profileError,setProfileError]=useState(''), [requiresAuth,setRequiresAuth]=useState(false), [reviews,setReviews]=useState([]), [databaseCreatorIds,setDatabaseCreatorIds]=useState({}), [reviewsLoading,setReviewsLoading]=useState(true), [reviewsError,setReviewsError]=useState(''), [appCreators,setAppCreators]=useState([]), [creatorsLoading,setCreatorsLoading]=useState(isSupabaseConfigured), [creatorRefresh,setCreatorRefresh]=useState(0), [followingIds,setFollowingIds]=useState(new Set()), [followerCounts,setFollowerCounts]=useState({}), [avatarUploading,setAvatarUploading]=useState(false), [avatarError,setAvatarError]=useState(''), [isAdmin,setIsAdmin]=useState(false);
   const pendingDestination = useRef(null);
   const signInNavigationHandled = useRef(false);
@@ -638,9 +639,10 @@ function App() {
   const shell=!['signup','login','complete-profile'].includes(page);
   if ((!authReady && protectedPages.has(page)) || (session?.user && !profileReady && protectedPages.has(page))) return <main className="auth-loading" aria-live="polite"><span className="brand-mark"><Play fill="white"/></span><p>Loading your account…</p></main>;
   return <>
-    {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} isAdmin={isAdmin}/>}
+    {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} isAdmin={isAdmin} sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed(value => !value)}/>}
+    <div className={`${shell ? 'app-main with-sidebar' : 'app-main'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
     {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} creatorsLoading={creatorsLoading}/>}
-    {page==='creators'&&<DiscoverCreators navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user}/>}
+    {(page==='creators'||page==='family')&&<DiscoverCreators key={page} initialSearchType={page==='family'?'people':'creators'} navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user}/>}
     {page==='profile'&&(creator?<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>:<main className="page"><div className="empty"><h3>Creator not found</h3><p>There are no creators to show yet.</p><button className="secondary" onClick={() => navigate('creators')}>Discover creators</button></div></main>)}
     {page==='privacy'&&<LegalPage type="privacy" navigate={navigate}/>}
     {page==='terms'&&<LegalPage type="terms" navigate={navigate}/>}
@@ -652,6 +654,7 @@ function App() {
     {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected} user={session?.user}/>}
     {page==='rate'&&session?.user&&<RateCreator navigate={navigate} selectedId={selected} selectedReviewId={selectedReviewId} submitReview={submitReview} updateReview={updateReview} creators={appCreators} reviews={reviews} user={session.user}/>}
     {shell&&<footer><button className="brand" onClick={()=>navigate('home')}><span className="brand-mark"><Play fill="white"/></span>Rate My <b>Creator</b></button><p>Better choices start with honest opinions.</p><button className="footer-link" onClick={()=>navigate('privacy')}>Privacy</button><button className="footer-link" onClick={()=>navigate('terms')}>Terms</button><span>© 2026 Rate My Creator · Class project</span></footer>}
+    </div>
   </>;
 }
 

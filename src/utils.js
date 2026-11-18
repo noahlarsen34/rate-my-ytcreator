@@ -52,6 +52,7 @@ export function profileDefaults(user, profile = {}) {
 export function pageFromPathname() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/discover') return 'creators';
+  if (path === '/family') return 'family';
   if (path.startsWith('/creators/')) return 'profile';
   if (path === '/privacy') return 'privacy';
   if (path === '/terms') return 'terms';
@@ -78,6 +79,7 @@ export function selectedIdFromPathname() {
 
 export function pathForPage(page, id = null) {
   if (page === 'creators') return '/discover';
+  if (page === 'family') return '/family';
   if (page === 'profile') return id ? `/creators/${encodeURIComponent(id)}` : '/discover';
   if (page === 'user-profile') return id ? `/users/${encodeURIComponent(id)}` : '/';
   if (page === 'privacy' || page === 'terms') return `/${page}`;
