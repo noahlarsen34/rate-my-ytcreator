@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, SlidersHorizontal, UserRound, UsersRound } from 'lucide-react';
+import { Search, SlidersHorizontal, UserRound, UsersRound, Check, X, RefreshCw } from 'lucide-react';
 import { CreatorCard, SearchBox } from '../components/shared';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const matchesTopic = (creator, topic) => creator.category === topic
   || `${creator.topic || ''} ${creator.name || ''}`.toLowerCase().includes(topic.toLowerCase());
 
-export function DiscoverCreators({ navigate, query, setQuery, creators, user }) {
+export function DiscoverCreators({ navigate, query, setQuery, creators, user, initialSearchType = 'creators' }) {
   const [selected, setSelected] = useState(['All']);
   const [sortBy, setSortBy] = useState('rating-high');
-  const [searchType, setSearchType] = useState('creators');
+  const [searchType, setSearchType] = useState(initialSearchType);
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
+  const [familyConnections, setFamilyConnections] = useState({ loading: false, items: [], error: '', workingId: null });
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,6 +102,36 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
     return () => { active = false; };
   }, [query, searchType, user?.id]);
 
+  useEffect(() => {
+    let active = true;
+    if (searchType !== 'people' || !user?.id || !isSupabaseConfigured) {
+      setFamilyConnections({ loading: false, items: [], error: '', workingId: null });
+      return () => { active = false; };
+    }
+    setFamilyConnections(current => ({ ...current, loading: true, error: '' }));
+    supabase.rpc('get_my_user_connections').then(({ data, error }) => {
+      if (!active) return;
+      setFamilyConnections({ loading: false, items: error ? [] : data || [], error: error ? 'Your connections could not be loaded.' : '', workingId: null });
+    }).catch(() => {
+      if (active) setFamilyConnections({ loading: false, items: [], error: 'Your connections could not be loaded.', workingId: null });
+    });
+    return () => { active = false; };
+  }, [searchType, user?.id]);
+
+  const updateFamilyConnection = async (connection, action) => {
+    if (familyConnections.workingId) return;
+    setFamilyConnections(current => ({ ...current, workingId: connection.user_id, error: '' }));
+    const result = connection.direction === 'received'
+      ? await supabase.rpc('respond_user_connection_request', { p_requester_id: connection.user_id, p_accept: action === 'accept' })
+      : await supabase.rpc('cancel_user_connection_request', { p_recipient_id: connection.user_id });
+    if (result.error) {
+      setFamilyConnections(current => ({ ...current, workingId: null, error: 'That connection request could not be updated. Please try again.' }));
+      return;
+    }
+    setFamilyConnections(current => ({ ...current, workingId: null, items: current.items.filter(item => item.user_id !== connection.user_id || (action === 'accept' && item.direction === 'received')).map(item => item.user_id === connection.user_id ? { ...item, direction: 'connected', status: 'accepted' } : item) }));
+    setPeopleState(current => ({ ...current, statuses: { ...current.statuses, [connection.user_id]: action === 'accept' ? 'connected' : 'available' } }));
+  };
+
   const updateConnection = async person => {
     if (!user) { navigate('login'); return; }
     if (workingId) return;
@@ -117,6 +148,8 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
     if (result.error) { setActionError('Your connection request could not be updated. Please try again.'); return; }
     const nextStatus = status === 'request_received' ? 'connected' : status === 'request_sent' ? 'available' : 'request_sent';
     setPeopleState(current => ({ ...current, statuses: { ...current.statuses, [person.user_id]: nextStatus } }));
+    const { data: connectionItems, error: connectionError } = await supabase.rpc('get_my_user_connections');
+    if (!connectionError) setFamilyConnections(current => ({ ...current, items: connectionItems || [] }));
   };
 
   const peopleDescription = !user
@@ -129,7 +162,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
     <div className="page-heading">
       <span className="kicker">DISCOVER</span>
       <h1>{searchType === 'creators' ? 'Check a creator before you watch' : 'Connect with family and friends'}</h1>
-      <p>{searchType === 'creators' ? 'Explore community ratings and content insights to make informed viewing choices.' : 'Connect with people you know and, when they choose to share, see their creator subscriptions.'}</p>
+      <p>{searchType === 'creators' ? 'Explore community ratings and content insights to make informed viewing choices.' : 'Parents and teens can connect to share creator subscriptions and review them together.'}</p>
     </div>
     <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
       <SearchBox compact={searchType === 'people'} value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
@@ -138,10 +171,6 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
           <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
         </button>)}
       </div>}
-    </div>
-    <div className="discover-search-tabs" role="tablist" aria-label="Search type">
-      <button type="button" role="tab" aria-selected={searchType === 'creators'} className={searchType === 'creators' ? 'active' : ''} onClick={() => setSearchType('creators')}><Search size={16}/> Creators</button>
-      <button type="button" role="tab" aria-selected={searchType === 'people'} className={searchType === 'people' ? 'active' : ''} onClick={() => setSearchType('people')}><UsersRound size={16}/> People</button>
     </div>
     {searchType === 'creators' ? <div className="browse-layout">
       <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div><label><input type="checkbox" checked={selected.includes('All')} onChange={() => toggle('All')} /><span>All</span><small>{creators.length}</small></label>{topics.map(topic => <label key={topic}><input type="checkbox" checked={selected.includes(topic)} onChange={() => toggle(topic)} /><span>{topic}</span><small>{creators.filter(creator => matchesTopic(creator, topic)).length}</small></label>)}</aside>
@@ -172,5 +201,16 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user }) 
             })}</>
               : <div className="empty"><UsersRound size={36}/><h3>No people found</h3><p>Try another username. Only accounts that appear in People search are listed.</p></div>}
     </section>}
+    {searchType === 'people'&&<section className="panel family-connections-panel"><div className="panel-head"><h2><UsersRound size={19}/> Your connections and requests</h2>{user&&<button type="button" className="text-button" onClick={() => { setFamilyConnections(current => ({ ...current, loading: true })); supabase.rpc('get_my_user_connections').then(({ data, error }) => setFamilyConnections({ loading: false, items: data || [], error: error ? 'Your connections could not be loaded.' : '', workingId: null })); }} disabled={familyConnections.loading}><RefreshCw size={15} className={familyConnections.loading ? 'spin' : ''}/> Refresh</button>}</div>
+      {!user ? <p className="dashboard-empty">Log in to see your connections and requests.</p>
+        : familyConnections.loading ? <p className="dashboard-empty" role="status">Loading connections…</p>
+          : familyConnections.error ? <p className="dashboard-empty" role="alert">{familyConnections.error}</p>
+            : familyConnections.items.length ? <div className="family-connection-list">{familyConnections.items.map(connection => <div className="family-connection-row" key={connection.user_id}>
+              <button type="button" className="person-result-profile" onClick={() => navigate('user-profile', connection.user_id)}><span className="person-result-avatar">{connection.avatar_url ? <img src={connection.avatar_url} alt="" referrerPolicy="no-referrer"/> : <UserRound size={20}/>}</span><span><b>@{connection.username}</b><small>{connection.direction === 'connected' ? 'Connected' : connection.direction === 'received' ? 'Request received' : 'Request sent'}</small></span></button>
+              <div className="person-result-actions">{connection.direction === 'received' ? <><button type="button" className="primary small" disabled={familyConnections.workingId === connection.user_id} onClick={() => updateFamilyConnection(connection, 'accept')}>{familyConnections.workingId === connection.user_id ? 'Please wait…' : <><Check size={15}/> Accept</>}</button><button type="button" className="text-button" disabled={familyConnections.workingId === connection.user_id} onClick={() => updateFamilyConnection(connection, 'decline')}><X size={15}/> Decline</button></> : connection.direction === 'sent' ? <button type="button" className="secondary" disabled={familyConnections.workingId === connection.user_id} onClick={() => updateFamilyConnection(connection, 'cancel')}>{familyConnections.workingId === connection.user_id ? 'Please wait…' : 'Cancel request'}</button> : <span className="connection-status">Connected</span>}</div>
+            </div>)}</div>
+              : <p className="dashboard-empty">No connections or requests yet. Search for a username above to get started.</p>}
+    </section>}
+    {searchType === 'people'&&<section className="panel family-connect-guide" aria-label="How family connections work"><h2>Share creator subscriptions with a parent</h2><ol><li>Your teen creates an account and allows their profile to appear in People search in Account settings.</li><li>Search for their username and send a connection request.</li><li>They accept the request. You can then view the creators they follow on Rate My Creator, including channels they choose to import from YouTube.</li></ol><p>Connections share creator subscriptions only. They do not show watch history or individual videos watched.</p></section>}
   </main>;
 }

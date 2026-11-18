@@ -101,6 +101,7 @@ export function UserProfile({ userId, navigate, returnTo, isOwnProfile = false, 
         </section>
         <section className="panel public-profile-section">
           <div className="panel-head"><h2><UsersRound size={19}/> Subscriptions</h2>{(profile.following_public || connection.status === 'connected')&&<span>{(profile.following_public ? profile.following : connection.subscriptions)?.length || 0}</span>}</div>
+          <p className="subscription-sharing-note">Creators this member follows on Rate My Creator. This does not include YouTube watch history or individual videos watched.</p>
           {!(profile.following_public || connection.status === 'connected') ? <p className="public-profile-private">This member keeps their creator subscriptions private.</p>
             : connection.subscriptionsLoading&&!profile.following_public ? <p className="public-profile-private" role="status">Loading creator subscriptions…</p>
               : (profile.following_public ? profile.following : connection.subscriptions)?.length ? <div className="public-following-list">{(profile.following_public ? profile.following : connection.subscriptions).map(creator => <button key={creator.creator_id} onClick={() => navigate('profile', `db-${creator.creator_id}`)}><span>{creator.creator_name}</span><ChevronRight size={17}/></button>)}</div>

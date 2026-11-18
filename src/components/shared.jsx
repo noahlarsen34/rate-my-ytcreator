@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Search, UserRound, ChevronRight, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles, ShieldCheck
+  Search, UserRound, ChevronRight, ChevronLeft, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles, ShieldCheck, Compass, UsersRound, LayoutDashboard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -32,7 +32,7 @@ export function SearchBox({ value, setValue, onSubmit, onKeyDown, compact = fals
   );
 }
 
-export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl, isAdmin = false }) {
+export function Header({ navigate, query, setQuery, creators = [], user, profileUsername, avatarUrl, isAdmin = false, sidebarCollapsed = false, onToggleSidebar }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [headerQuery, setHeaderQuery] = useState(query);
@@ -60,7 +60,7 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
     if (supabase) await supabase.auth.signOut();
     goTo('home');
   };
-  return (
+  return <>
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
       <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
@@ -72,12 +72,14 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
         </div>}
       </div>
       <nav className={mobileNavOpen ? 'open' : ''}>
-        <button onClick={() => goTo('creators')}>Discover</button>
+        <button className="desktop-nav-link" onClick={() => goTo('creators')}>Explore creators</button>
+        <button className="desktop-nav-link" onClick={() => goTo('family')}>Family connections</button>
+        <button className="desktop-nav-link" onClick={() => goTo('dashboard')}>My dashboard</button>
         {user ? <div className="account-menu" ref={accountMenuRef}>
           <span className="account-avatar">{avatarUrl ? <img src={avatarUrl} alt="" referrerPolicy="no-referrer"/> : <UserRound size={18}/>}</span>
           <button className="account-chip" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen(!accountMenuOpen)}>{displayName} <ChevronRight className="account-mobile-chevron" size={17} /></button>
           {accountMenuOpen && <div className="account-dropdown" role="menu">
-            <button role="menuitem" onClick={() => goTo('dashboard')}>Dashboard</button>
+            <button role="menuitem" onClick={() => goTo('dashboard')}><LayoutDashboard size={17}/> Dashboard</button>
             {isAdmin&&<button role="menuitem" onClick={() => goTo('admin')}><ShieldCheck size={17}/> Admin</button>}
             <button role="menuitem" onClick={() => goTo('settings')}><Settings size={17}/> Account settings</button>
             <button className="dropdown-logout" role="menuitem" onClick={logout}><LogOut size={17}/> Log out</button>
@@ -86,7 +88,15 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
       </nav>
       <button className="menu" aria-expanded={mobileNavOpen} aria-label="Toggle navigation menu" onClick={() => setMobileNavOpen(!mobileNavOpen)}><Menu /></button>
     </header>
-  );
+    <aside className={`primary-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} aria-label="Main navigation">
+      <button type="button" className="sidebar-toggle" onClick={onToggleSidebar} aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'} title={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}>{sidebarCollapsed ? <ChevronRight size={18}/> : <ChevronLeft size={18}/>}</button>
+      <span className="sidebar-label">MENU</span>
+      <button className="sidebar-link" title="Explore creators" onClick={() => goTo('creators')}><Compass size={19}/><span>Explore creators</span></button>
+      <button className="sidebar-link" title="Family connections" onClick={() => goTo('family')}><UsersRound size={19}/><span>Family connections</span></button>
+      <button className="sidebar-link" title="My dashboard" onClick={() => goTo('dashboard')}><LayoutDashboard size={19}/><span>My dashboard</span></button>
+      {isAdmin&&<button className="sidebar-link" title="Admin" onClick={() => goTo('admin')}><ShieldCheck size={19}/><span>Admin</span></button>}
+    </aside>
+  </>;
 }
 
 export function CreatorCard({ creator, navigate, wide = false }) {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Sparkles, ChevronRight } from 'lucide-react';
+import { Sparkles, ChevronRight, Search, UsersRound } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { supabase } from '../lib/supabase';
 
@@ -88,6 +88,10 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
           </button>)}
         </div>}
       </div>
+    </section>
+    <section className="home-pathways" aria-label="Choose a starting point">
+      <button className="home-pathway-card" onClick={() => navigate('creators')}><span className="home-pathway-icon"><Search size={20}/></span><span><b>Check a creator</b><small>Explore community ratings and content insights before you watch.</small></span><ChevronRight size={19}/></button>
+      <button className="home-pathway-card" onClick={() => navigate('family')}><span className="home-pathway-icon"><UsersRound size={20}/></span><span><b>Connect with family</b><small>Share creator subscriptions with a parent or teen.</small></span><ChevronRight size={19}/></button>
     </section>
     <section className="section featured">
       <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Top rated creators</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
