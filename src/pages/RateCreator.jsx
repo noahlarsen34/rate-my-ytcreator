@@ -165,7 +165,7 @@ export function RateCreator({ navigate, selectedId, submitReview, creators }) {
 
       <section className="panel">
         <h2>Content details</h2>
-        <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="All ages">All ages</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option></select></label>
+        <label>Overall age-appropriateness<select name="ageLevel" required defaultValue=""><option value="" disabled>Select an age range</option><option value="Under 8">Under 8</option><option>8+</option><option>13+</option><option>16+</option><option>18+</option><option value="All ages">All ages</option></select></label>
         <label>Profanity<select value={values.profanity} onChange={event => setValues(current => ({ ...current, profanity: event.target.value }))}><option value="1">None</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very frequently</option></select></label>
         <div className="rating-range-field">
           <label>How often does the content show or discuss alcohol, drugs, or vaping?<select value={values.substance} onChange={event => setValues(current => ({ ...current, substance: event.target.value }))}><option value="1">Never</option><option value="2">Rarely</option><option value="3">Sometimes</option><option value="4">Often</option><option value="5">Very often</option></select></label>
