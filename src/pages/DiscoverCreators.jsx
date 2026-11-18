@@ -18,6 +18,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
   const [actionError, setActionError] = useState('');
   const [familyConnections, setFamilyConnections] = useState({ loading: false, items: [], error: '', workingId: null });
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [currentPage, setCurrentPage] = useState(1);
   const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category).filter(Boolean))], [creators]);
@@ -28,12 +29,36 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
     .sort((first, second) => {
       if (sortBy === 'rating-high') return second.score - first.score;
       if (sortBy === 'rating-low') return first.score - second.score;
+      const metricSorts = {
+        'substance-high': ['substance', -1], 'substance-low': ['substance', 1],
+        'profanity-high': ['profanity', -1], 'profanity-low': ['profanity', 1],
+        'reviews-high': ['reviews', -1], 'reviews-low': ['reviews', 1]
+      };
+      if (metricSorts[sortBy]) {
+        const [metric, direction] = metricSorts[sortBy];
+        const a = Number.isFinite(first[metric]) ? first[metric] : null;
+        const b = Number.isFinite(second[metric]) ? second[metric] : null;
+        if (a == null && b != null) return 1;
+        if (b == null && a != null) return -1;
+        if (a !== b) return (a - b) * direction;
+      }
+      if (sortBy === 'age-youngest' || sortBy === 'age-oldest') {
+        const ages = ['All ages', 'Under 8', '8+', '13+', '16+', '18+'];
+        const a = ages.indexOf(first.audience), b = ages.indexOf(second.audience);
+        if (a < 0 && b >= 0) return 1;
+        if (b < 0 && a >= 0) return -1;
+        if (a !== b) return (a - b) * (sortBy === 'age-youngest' ? 1 : -1);
+      }
+      if (sortBy === 'ai-yes' || sortBy === 'ai-no') {
+        const preferred = sortBy === 'ai-yes' ? 'Yes' : 'No';
+        if ((first.ai === preferred) !== (second.ai === preferred)) return first.ai === preferred ? -1 : 1;
+      }
       const firstCount = Number.isFinite(first.subscriberCount) ? first.subscriberCount : null;
       const secondCount = Number.isFinite(second.subscriberCount) ? second.subscriberCount : null;
       if (firstCount == null && secondCount == null) return first.name.localeCompare(second.name);
       if (firstCount == null) return 1;
       if (secondCount == null) return -1;
-      return secondCount - firstCount;
+      return sortBy === 'subscribers-low' ? firstCount - secondCount : secondCount - firstCount;
     }), [creators, query, selected, sortBy]);
   const pageSize = 30;
   const pageCount = Math.ceil(filtered.length / pageSize);
@@ -190,8 +215,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
       </div>}
     </div>
     {searchType === 'creators' ? <div className="browse-layout">
-      <aside className="filters"><div className="filter-title"><SlidersHorizontal size={18} /> Filter by topic</div><label><input type="checkbox" checked={selected.includes('All')} onChange={() => toggle('All')} /><span>All</span><small>{creators.length}</small></label>{topics.map(topic => <label key={topic}><input type="checkbox" checked={selected.includes(topic)} onChange={() => toggle(topic)} /><span>{topic}</span><small>{creators.filter(creator => matchesTopic(creator, topic)).length}</small></label>)}</aside>
-      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><label>Sort by <select value={sortBy} onChange={event => setSortBy(event.target.value)} aria-label="Sort creators"><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label></div>{filtered.length ? <>{visibleCreators.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />)}{pageCount > 1 && <nav className="creator-pagination" aria-label="Creator result pages">{pageGroupStart > 1 && <button type="button" aria-label={`Previous page group, pages ${pageGroupStart - 15} to ${pageGroupStart - 1}`} onClick={() => { setCurrentPage(pageGroupStart - 1); document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>‹</button>}{Array.from({ length: pageGroupEnd - pageGroupStart + 1 }, (_, index) => pageGroupStart + index).map(page => <button type="button" key={page} className={page === currentPage ? 'active' : ''} aria-current={page === currentPage ? 'page' : undefined} onClick={() => { setCurrentPage(page); document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{page}</button>)}{pageGroupEnd < pageCount && <button type="button" aria-label={`Next page group, starting at page ${pageGroupEnd + 1}`} onClick={() => { setCurrentPage(pageGroupEnd + 1); document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{pageGroupEnd + 1}+</button>}</nav>}</> : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
+      <section className="results"><div className="results-head"><b>{filtered.length} creators</b><button type="button" className="secondary" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(open => !open)}><SlidersHorizontal size={16}/> Filters{selected.filter(topic => topic !== 'All').length + (sortBy !== 'rating-high' ? 1 : 0) > 0 ? ` (${selected.filter(topic => topic !== 'All').length + (sortBy !== 'rating-high' ? 1 : 0)})` : ''}</button></div>{filtersOpen&&<div className="panel discover-filter-panel"><div className="panel-head"><h2><SlidersHorizontal size={18}/> Find creators by</h2><button type="button" className="text-button" onClick={() => {setSelected(['All']);setSortBy('rating-high');}}>Reset</button></div><label>Sort by<select value={sortBy} onChange={event => setSortBy(event.target.value)}><option value="rating-high">Most positively reviewed</option><option value="rating-low">Most negatively reviewed</option><option value="substance-high">Most substance use reported</option><option value="substance-low">Least substance use reported</option><option value="profanity-high">Most profanity reported</option><option value="profanity-low">Least profanity reported</option><option value="age-youngest">Youngest age rating</option><option value="age-oldest">Oldest age rating</option><option value="ai-yes">AI use reported: Yes</option><option value="ai-no">AI use reported: No</option><option value="reviews-high">Most reviews</option><option value="reviews-low">Fewest reviews</option><option value="subscribers-high">Most subscribed</option><option value="subscribers-low">Least subscribed</option></select></label><div className="discover-filter-topics"><b>Topics</b><label><input type="checkbox" checked={selected.includes('All')} onChange={() => toggle('All')}/> All topics</label>{topics.map(topic=><label key={topic}><input type="checkbox" checked={selected.includes(topic)} onChange={()=>toggle(topic)}/> {topic}</label>)}</div><small>Review filters rank creators by community review averages and reported answers.</small></div>}{filtered.length ? filtered.map(creator => <CreatorCard key={creator.id} creator={creator} navigate={navigate} wide />) : <div className="empty"><Search size={36}/><h3>No creators found</h3><p>Try another name, topic, or remove a filter.</p><button className="secondary" onClick={() => {setQuery('');setSelected(['All']);}}>Clear search</button></div>}</section>
     </div> : <section className="people-results" aria-live="polite">
       {peopleDescription ? <div className="empty"><UserRound size={36}/><h3>{user ? 'Search for a username' : 'Log in to find people'}</h3><p>{peopleDescription}</p>{!user&&<button className="primary" onClick={() => navigate('login')}>Log in</button>}</div>
         : peopleState.loading ? <p className="people-search-status" role="status">Searching people…</p>
