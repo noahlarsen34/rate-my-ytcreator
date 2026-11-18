@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Search, SlidersHorizontal, UserRound, UsersRound, Check, X, RefreshCw } from 'lucide-react';
 import { CreatorCard, SearchBox } from '../components/shared';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { recordUserSearch } from '../lib/searchHistory';
 
 const matchesTopic = (creator, topic) => creator.category === topic
   || `${creator.topic || ''} ${creator.name || ''}`.toLowerCase().includes(topic.toLowerCase());
@@ -11,6 +12,8 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
   const [sortBy, setSortBy] = useState('rating-high');
   const [searchType, setSearchType] = useState(initialSearchType);
   const [peopleState, setPeopleState] = useState({ loading: false, people: [], statuses: {}, error: '' });
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [recentSearchesOpen, setRecentSearchesOpen] = useState(false);
   const [workingId, setWorkingId] = useState(null);
   const [actionError, setActionError] = useState('');
   const [familyConnections, setFamilyConnections] = useState({ loading: false, items: [], error: '', workingId: null });
@@ -44,9 +47,22 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
     return creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 8);
   }, [creators, query]);
   const chooseCreator = creator => {
+    void recordUserSearch(creator.name);
     setQuery(creator.name);
     setCreatorPickerOpen(false);
     setActiveSuggestionIndex(-1);
+  };
+  const openRecentSearches = async () => {
+    if (searchType !== 'creators' || !user?.id || !isSupabaseConfigured) return;
+    setRecentSearchesOpen(true);
+    const { data, error } = await supabase.from('user_search_history').select('search').order('searched_at', { ascending: false }).limit(3);
+    if (!error) setRecentSearches((data || []).map(row => row.search).filter(Boolean));
+  };
+  const selectRecentSearch = search => {
+    setRecentSearchesOpen(false);
+    setCreatorPickerOpen(false);
+    void recordUserSearch(search);
+    setQuery(search);
   };
   const handleCreatorSearchKeyDown = event => {
     if (searchType !== 'creators' || !creatorPickerOpen || !suggestions.length) {
@@ -164,8 +180,9 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
       <h1>{searchType === 'creators' ? 'Check a creator before you watch' : 'Connect with family and friends'}</h1>
       <p>{searchType === 'creators' ? 'Explore community ratings and content insights to make informed viewing choices.' : 'Parents and teens can connect to share creator subscriptions and review them together.'}</p>
     </div>
-    <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setCreatorPickerOpen(false); }}>
-      <SearchBox compact={searchType === 'people'} value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search creators or users' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search creators or users' : 'Search people'} />
+    <div className="discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setCreatorPickerOpen(false); setRecentSearchesOpen(false); } }}>
+      <SearchBox compact={searchType === 'people'} value={query} setValue={value => { setQuery(value); setCreatorPickerOpen(true); setActiveSuggestionIndex(-1); setRecentSearchesOpen(false); }} onFocus={openRecentSearches} onSubmit={() => { setRecentSearchesOpen(false); void recordUserSearch(query); setCreatorPickerOpen(false); }} onKeyDown={handleCreatorSearchKeyDown} combobox={searchType === 'creators'} expanded={searchType === 'creators' && creatorPickerOpen && suggestions.length > 0} controls="discover-creator-suggestions" activeDescendant={activeSuggestionIndex >= 0 ? `discover-creator-suggestion-${activeSuggestionIndex}` : undefined} placeholder={searchType === 'creators' ? 'Search content creators' : 'Search usernames'} ariaLabel={searchType === 'creators' ? 'Search content creators' : 'Search people'} />
+      {searchType === 'creators' && recentSearchesOpen && !query.trim() && recentSearches.length > 0 && <div className="recent-searches-dropdown" role="listbox" aria-label="Recent searches"><span className="recent-searches-heading">Recent searches</span>{recentSearches.map((search, index) => <button type="button" role="option" key={`${search}-${index}`} onMouseDown={event => event.preventDefault()} onClick={() => selectRecentSearch(search)}><Search size={15}/><span>{search}</span></button>)}</div>}
       {searchType === 'creators' && creatorPickerOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" id="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
         {suggestions.map((creator, index) => <button type="button" role="option" id={`discover-creator-suggestion-${index}`} aria-selected={index === activeSuggestionIndex} key={creator.id} onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActiveSuggestionIndex(index)} onClick={() => chooseCreator(creator)}>
           <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>

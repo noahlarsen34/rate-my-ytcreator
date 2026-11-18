@@ -3,6 +3,7 @@ import {
   Search, UserRound, ChevronRight, ChevronLeft, Star, ThumbsUp, ThumbsDown, Menu, Play, Settings, LogOut, Sparkles, ShieldCheck, Compass, UsersRound, LayoutDashboard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { recordUserSearch } from '../lib/searchHistory';
 
 export function Avatar({ creator, size = 'md' }) {
   return <div className={`avatar ${size}`} style={{ '--avatar': creator.color }}>{creator.thumbnailUrl ? <img src={creator.thumbnailUrl} alt="" referrerPolicy="no-referrer"/> : <span>{creator.initials}</span>}</div>;
@@ -22,11 +23,11 @@ export function ReviewAuthor({ review, navigate, currentUserId }) {
   </button>;
 }
 
-export function SearchBox({ value, setValue, onSubmit, onKeyDown, compact = false, placeholder = 'Search creators or users', ariaLabel = 'Search creators or users', combobox = false, expanded = false, controls, activeDescendant }) {
+export function SearchBox({ value, setValue, onSubmit, onKeyDown, onFocus, compact = false, placeholder = 'Search content creators', ariaLabel = 'Search content creators', combobox = false, expanded = false, controls, activeDescendant }) {
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
       <Search size={compact ? 18 : 23} />
-      <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={onKeyDown} placeholder={placeholder} aria-label={ariaLabel} role={combobox ? 'combobox' : undefined} aria-autocomplete={combobox ? 'list' : undefined} aria-expanded={combobox ? expanded : undefined} aria-controls={combobox ? controls : undefined} aria-activedescendant={combobox ? activeDescendant : undefined} />
+      <input value={value} onChange={e => setValue(e.target.value)} onKeyDown={onKeyDown} onFocus={onFocus} placeholder={placeholder} aria-label={ariaLabel} role={combobox ? 'combobox' : undefined} aria-autocomplete={combobox ? 'list' : undefined} aria-expanded={combobox ? expanded : undefined} aria-controls={combobox ? controls : undefined} aria-activedescendant={combobox ? activeDescendant : undefined} />
       {!compact && <button>Search</button>}
     </form>
   );
@@ -37,6 +38,8 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [headerQuery, setHeaderQuery] = useState(query);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [recentSearchesOpen, setRecentSearchesOpen] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
   const suggestions = useMemo(() => {
     const term = headerQuery.trim().toLowerCase();
     return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 6) : [];
@@ -60,13 +63,28 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
     if (supabase) await supabase.auth.signOut();
     goTo('home');
   };
+  const openRecentSearches = async () => {
+    if (!user?.id || !supabase) return;
+    setRecentSearchesOpen(true);
+    const { data, error } = await supabase.from('user_search_history').select('search').order('searched_at', { ascending: false }).limit(3);
+    if (!error) setRecentSearches((data || []).map(row => row.search).filter(Boolean));
+  };
+  const selectRecentSearch = search => {
+    setHeaderQuery(search);
+    setRecentSearchesOpen(false);
+    setSuggestionsOpen(false);
+    void recordUserSearch(search);
+    setQuery(search);
+    navigate('creators');
+  };
   return <>
     <header className="header">
       <button className="brand" onClick={() => navigate('home')}><span className="brand-mark"><Play fill="white" /></span><span>Rate My <b>Creator</b></span></button>
-      <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setSuggestionsOpen(false); }}>
-        <SearchBox compact value={headerQuery} setValue={value => { setHeaderQuery(value); setSuggestionsOpen(true); }} onSubmit={() => { setQuery(headerQuery); navigate('creators'); }} />
+      <div className="nav-search discover-search-wrap" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { setSuggestionsOpen(false); setRecentSearchesOpen(false); } }}>
+        <SearchBox compact value={headerQuery} setValue={value => { setHeaderQuery(value); setSuggestionsOpen(true); setRecentSearchesOpen(false); }} onFocus={openRecentSearches} onSubmit={() => { setRecentSearchesOpen(false); void recordUserSearch(headerQuery); setQuery(headerQuery); navigate('creators'); }} />
+        {recentSearchesOpen && !headerQuery.trim() && recentSearches.length > 0 && <div className="recent-searches-dropdown" role="listbox" aria-label="Recent searches"><span className="recent-searches-heading">Recent searches</span>{recentSearches.map((search, index) => <button type="button" role="option" key={`${search}-${index}`} onMouseDown={event => event.preventDefault()} onClick={() => selectRecentSearch(search)}><Search size={15}/><span>{search}</span></button>)}</div>}
         {suggestionsOpen && suggestions.length > 0 && <div className="discover-creator-suggestions" role="listbox" aria-label="Creator suggestions">
-          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHeaderQuery(creator.name); setSuggestionsOpen(false); setQuery(creator.name); navigate('creators'); }}>
+          {suggestions.map(creator => <button type="button" role="option" key={creator.id} onMouseDown={event => event.preventDefault()} onClick={() => { setHeaderQuery(creator.name); setSuggestionsOpen(false); void recordUserSearch(creator.name); setQuery(creator.name); navigate('creators'); }}>
             <span className="creator-suggestion-avatar">{creator.initials}</span><span><b>{creator.name}</b><small>{creator.handle} · {creator.topic}</small></span>
           </button>)}
         </div>}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, ChevronRight, Search, UsersRound } from 'lucide-react';
 import { SearchBox, CreatorCard } from '../components/shared';
 import { supabase } from '../lib/supabase';
+import { recordUserSearch } from '../lib/searchHistory';
 
 export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
   const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
@@ -13,6 +14,7 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
     return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 8) : [];
   }, [creators, homeQuery]);
   const searchCreators = value => {
+    void recordUserSearch(value);
     setQuery(value);
     navigate('creators');
   };
