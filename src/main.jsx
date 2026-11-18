@@ -31,6 +31,17 @@ const cleanYouTubeDescription = value => {
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
 const returnablePages = new Set(['home', 'creators', 'family', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'admin', 'settings', 'rate']);
+const reviewSelect = 'review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at, content_creators(channel_link)';
+const loadAllReviews = async () => {
+  const pageSize = 1000;
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const result = await supabase.from('reviews').select(reviewSelect).order('created_at', { ascending: false }).range(from, from + pageSize - 1);
+    if (result.error) return result;
+    rows.push(...(result.data || []));
+    if ((result.data || []).length < pageSize) return { data: rows, error: null };
+  }
+};
 const savedPageDestination = () => {
   try {
     const destination = JSON.parse(window.localStorage.getItem('lastPageDestination'));
@@ -400,7 +411,7 @@ function App() {
       setCreatorsLoading(true);
       const [creatorsResult, reviewsResult, typesResult] = await Promise.all([
         supabase.from('content_creators').select('*'),
-        supabase.from('reviews').select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at, content_creators(channel_link)').order('created_at', { ascending: false })
+        loadAllReviews()
         ,supabase.from('channel_types').select('type_id, type_name')
       ]);
 
