@@ -125,3 +125,4 @@ html,body,#root{background:#0c0c0e}
 .recommendation-grid{gap:18px}
 .dashboard-profile-preview{margin-top:18px}
 @media(max-width:800px){.profile-top-grid>.profile-right-stack{order:-1}}
+.home-explore-card{align-items:stretch;flex-direction:column;gap:16px}.home-explore-heading{display:flex;align-items:center;gap:14px}.home-explore-heading>span:last-child{flex:1;min-width:0}.home-explore-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px}
