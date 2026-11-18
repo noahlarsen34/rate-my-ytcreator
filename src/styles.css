@@ -107,10 +107,13 @@
 .score-card-rating{display:flex;align-items:center;justify-content:center;gap:9px;color:#ffbd2e}.score-card-rating>strong{display:block;margin:3px;color:#f7f7f8;font:800 55px/1.1 Manrope,sans-serif}
 .profile-hero .avatar.xl{align-self:start;width:148px;height:148px;margin-top:32px;font-size:42px}@media(max-width:800px){.profile-hero .avatar.xl{align-self:center;width:108px;height:108px;margin-top:0}}
 .profile-full-width>.panel{margin:0}
+.profile-left-stack>.profile-full-width{margin-top:0}
 .family-overview-panel .family-content-metric-head{flex-direction:column;align-items:flex-start;gap:5px}
 .family-overview-panel .family-content-metric-head b{font-size:15px}
-.profile-right-stack .score-card>span{color:#f3f3f5;font-size:15px;font-weight:700;letter-spacing:.3px}
+.profile-hero>.score-card>span{color:#f3f3f5;font-size:15px;font-weight:700;letter-spacing:.3px}
 .people-result-list{display:grid;gap:10px;max-height:390px;overflow-y:auto;overscroll-behavior:contain;padding-right:8px;scrollbar-width:thin;scrollbar-color:#45454d transparent}.people-result-list .person-result{margin-bottom:0}.people-result-list:focus-visible{outline:2px solid #ff656a;outline-offset:3px}
+.profile-hero>.score-card{width:220px;align-self:center;padding:30px}
+@media(max-width:800px){.profile-hero>.score-card{width:min(100%,380px)}}
 .people-result-list{margin-right:-8px}
 .page{padding-left:40px;padding-right:40px}.section{padding-left:40px;padding-right:40px}.hero{padding-left:40px;padding-right:40px}.trust-strip{padding-left:40px;padding-right:40px}.home-pathways{width:min(1132px,calc(100% - 80px))}.cta{width:min(1132px,calc(100% - 80px));margin-left:auto;margin-right:auto}footer{padding-left:40px;padding-right:40px}
 @media(max-width:1100px){.page,.section{padding-left:32px;padding-right:32px}.hero{padding-left:32px;padding-right:32px}.trust-strip{padding-left:32px;padding-right:32px}.home-pathways,.cta{width:calc(100% - 64px)}footer{padding-left:32px;padding-right:32px}}
@@ -121,3 +124,4 @@ html,body,#root{background:#0c0c0e}
 .dashboard-recommendations .recommendation-heading{margin-bottom:18px}
 .recommendation-grid{gap:18px}
 .dashboard-profile-preview{margin-top:18px}
+@media(max-width:800px){.profile-top-grid>.profile-right-stack{order:-1}}
