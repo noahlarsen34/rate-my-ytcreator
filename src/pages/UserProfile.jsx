@@ -83,7 +83,7 @@ export function UserProfile({ userId, navigate, returnTo, isOwnProfile = false, 
           <div><span className="kicker">COMMUNITY MEMBER</span><h1>{username.startsWith('@') ? username : `@${username}`}</h1></div>
           {isOwnProfile&&<button className="secondary" onClick={() => navigate('settings')}><Pencil size={16}/> Edit visibility settings</button>}
           {!isOwnProfile&&user&&connection.status !== 'unavailable'&&!connection.loading&&<div className="profile-connection-actions">
-            {connection.status === 'connected'&&<><span className="connection-status">Connected</span><button className="text-button" disabled={connection.working} onClick={() => updateConnection('disconnect')}>Disconnect</button></>}
+            {connection.status === 'connected'&&<button className="secondary" disabled={connection.working} onClick={() => updateConnection('disconnect')}>{connection.working?'Please wait…':'Disconnect'}</button>}
             {connection.status === 'request_sent'&&<button className="secondary" disabled={connection.working} onClick={() => updateConnection('cancel')}>{connection.working?'Please wait…':'Request sent'}</button>}
             {connection.status === 'available'&&<button className="primary small" disabled={connection.working} onClick={() => updateConnection('send')}>{connection.working?'Please wait…':'Connect'}</button>}
             {connection.status === 'request_received'&&<><button className="primary small" disabled={connection.working} onClick={() => updateConnection('accept')}>{connection.working?'Please wait…':'Accept request'}</button><button className="text-button" disabled={connection.working} onClick={() => updateConnection('decline')}>Decline</button></>}
