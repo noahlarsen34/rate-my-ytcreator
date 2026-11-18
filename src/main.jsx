@@ -84,15 +84,25 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
     const current = totals.get(review.creatorId) || {
       total: 0,
       profanity: 0,
+      profanityCount: 0,
       substance: 0,
+      substanceCount: 0,
       count: 0,
       ages: {},
       ai: {},
       scores: Array(10).fill(0)
     };
     current.total += score;
-    current.profanity += Number(review.profanity) || 0;
-    current.substance += Number(review.substance) || 0;
+    const profanity = Number(review.profanity);
+    if (Number.isFinite(profanity) && profanity >= 1 && profanity <= 5) {
+      current.profanity += profanity;
+      current.profanityCount += 1;
+    }
+    const substance = Number(review.substance);
+    if (Number.isFinite(substance) && substance >= 1 && substance <= 5) {
+      current.substance += substance;
+      current.substanceCount += 1;
+    }
     current.count += 1;
     if (review.ageLevel) current.ages[review.ageLevel] = (current.ages[review.ageLevel] || 0) + 1;
     if (review.usesAi && review.usesAi !== 'Unsure') current.ai[review.usesAi] = (current.ai[review.usesAi] || 0) + 1;
@@ -119,8 +129,8 @@ const creatorsWithReviewSummaries = (creators, reviews) => {
       ...creator,
       score: rating.total / rating.count,
       reviews: rating.count,
-      profanity: rating.profanity / rating.count,
-      substance: rating.substance / rating.count,
+      profanity: rating.profanityCount ? rating.profanity / rating.profanityCount : 1,
+      substance: rating.substanceCount ? rating.substance / rating.substanceCount : 1,
       audience: mostCommon(rating.ages) || 'Not enough data',
       ai: mostCommon(rating.ai) || 'Not enough data',
       ratingBreakdown: rating.scores.map(count => Math.round((count / rating.count) * 100))
