@@ -126,7 +126,7 @@ export function Profile({ creator, navigate, reviews, reviewsLoading, reviewsErr
     .sort((a, b) => (b.voteCounts?.up ?? 0) - (a.voteCounts?.up ?? 0) || new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   const syntheticReviewCount = creatorReviews.filter(review => review.reviewSource === 'synthetic_demo').length;
   const hasRatings = creator.reviews > 0;
-  const scoreCard = <div className={`score-card ${hasRatings ? '' : 'unrated'}`}><span>{creator.syntheticReviews ? 'DEMO-INCLUSIVE SCORE' : 'COMMUNITY SCORE'}</span>{hasRatings?<><div className="score-card-rating"><strong>{creator.score.toFixed(1)}</strong><Star size={30} fill="currentColor" aria-hidden="true"/></div><p>Based on {creator.reviews.toLocaleString()} ratings{creator.syntheticReviews ? `, including ${creator.syntheticReviews} demo` : ''}</p></>:<><strong>—</strong><b>Not rated yet</b><p>Be the first to rate this creator</p></>}</div>;
+  const scoreCard = <div className={`score-card ${hasRatings ? '' : 'unrated'}`}><span>Overall Rating</span>{hasRatings?<><div className="score-card-rating"><strong>{creator.score.toFixed(1)}</strong><Star size={30} fill="currentColor" aria-hidden="true"/></div><p>Based on {creator.reviews.toLocaleString()} ratings{creator.syntheticReviews ? `, including ${creator.syntheticReviews} demo` : ''}</p></>:<><strong>—</strong><b>Not rated yet</b><p>Be the first to rate this creator</p></>}</div>;
   const formatStat = value => value === null || value === undefined ? 'Not available' : Number(value).toLocaleString();
   const frequencyLabel = value => ['None', 'Rarely', 'Sometimes', 'Often', 'Frequently'][Math.max(0, Math.min(4, Math.round(Number(value) || 1) - 1))];
   const openReportForReview = review => {

@@ -22,6 +22,18 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
   const [currentPage, setCurrentPage] = useState(1);
   const categories = useMemo(() => ['All', ...new Set(creators.map(creator => creator.category).filter(Boolean))], [creators]);
   const topics = useMemo(() => categories.filter(topic => topic !== 'All'), [categories]);
+  const visiblePeople = useMemo(() => {
+    const term = query.trim().replace(/^@/, '').toLowerCase();
+    const rank = username => {
+      const normalized = (username || '').toLowerCase();
+      if (!term) return 0;
+      if (normalized === term) return 0;
+      if (normalized.startsWith(term)) return 1;
+      if (normalized.includes(term)) return 2;
+      return 3;
+    };
+    return [...peopleState.people].sort((first, second) => rank(first.username) - rank(second.username) || (first.username || '').localeCompare(second.username || ''));
+  }, [peopleState.people, query]);
   const filtered = useMemo(() => creators
     .filter(creator => (selected.includes('All') || selected.some(topic => matchesTopic(creator, topic)))
       && (`${creator.name} ${creator.topic} ${creator.category}`).toLowerCase().includes(query.toLowerCase()))
@@ -92,14 +104,13 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
 
   useEffect(() => {
     let active = true;
-    const term = query.trim().replace(/^@/, '');
-    if (searchType !== 'people' || !user?.id || term.length < 2 || !isSupabaseConfigured) {
+    if (searchType !== 'people' || !user?.id || !isSupabaseConfigured) {
       setPeopleState({ loading: false, people: [], statuses: {}, error: '' });
       return () => { active = false; };
     }
     setPeopleState(current => ({ ...current, loading: true, error: '' }));
     Promise.all([
-      supabase.rpc('search_people', { p_query: term }),
+      supabase.rpc('search_people', { p_query: '' }),
       supabase.rpc('get_my_user_connections')
     ]).then(([peopleResult, connectionsResult]) => {
       if (!active) return;
@@ -116,7 +127,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
       if (active) setPeopleState({ loading: false, people: [], statuses: {}, error: 'People search is temporarily unavailable. Please try again later.' });
     });
     return () => { active = false; };
-  }, [query, searchType, user?.id]);
+  }, [searchType, user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -170,9 +181,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
 
   const peopleDescription = !user
     ? 'Log in to search for people and send connection requests.'
-    : query.trim().length < 2
-      ? 'Enter at least 2 characters to search usernames.'
-      : '';
+    : '';
 
   return <main className={`page discover-page ${searchType === 'people' ? 'people-mode' : ''}`}>
     <div className="page-heading">
@@ -196,7 +205,7 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
       {peopleDescription ? <div className="empty"><UserRound size={36}/><h3>{user ? 'Search for a username' : 'Log in to find people'}</h3><p>{peopleDescription}</p>{!user&&<button className="primary" onClick={() => navigate('login')}>Log in</button>}</div>
         : peopleState.loading ? <p className="people-search-status" role="status">Searching people…</p>
           : peopleState.error ? <div className="empty" role="alert"><h3>People search unavailable</h3><p>{peopleState.error}</p></div>
-            : peopleState.people.length ? <><div className="results-head"><b>{peopleState.people.length} people</b><span>Searchable profiles</span></div>{actionError&&<p className="form-error" role="alert">{actionError}</p>}{peopleState.people.map(person => {
+            : visiblePeople.length ? <><div className="results-head"><b>{visiblePeople.length} people</b><span>{query.trim() ? 'Matching usernames appear first' : 'Searchable profiles'}</span></div>{actionError&&<p className="form-error" role="alert">{actionError}</p>}<div className="people-result-list" role="region" aria-label="Searchable profiles" tabIndex={0}>{visiblePeople.map(person => {
               const status = peopleState.statuses[person.user_id] || 'available';
               const label = status === 'connected' ? 'Connected' : status === 'request_sent' ? 'Request sent' : status === 'request_received' ? 'Accept request' : 'Connect';
               return <article className="person-result" key={person.user_id}>
@@ -215,8 +224,8 @@ export function DiscoverCreators({ navigate, query, setQuery, creators, user, in
                   <button type="button" className={status === 'available' || status === 'request_received' ? 'primary small' : 'secondary'} disabled={workingId === person.user_id || status === 'connected'} onClick={() => updateConnection(person)}>{workingId === person.user_id ? 'Please wait…' : label}</button>
                 </div>
               </article>;
-            })}</>
-              : <div className="empty"><UsersRound size={36}/><h3>No people found</h3><p>Try another username. Only accounts that appear in People search are listed.</p></div>}
+            })}</div></>
+              : <div className="empty"><UsersRound size={36}/><h3>No searchable profiles yet</h3><p>People who enable “Show my profile in People search” will appear here.</p></div>}
     </section>}
     {searchType === 'people'&&<section className="panel family-connections-panel"><div className="panel-head"><h2><UsersRound size={19}/> Your connections and requests</h2>{user&&<button type="button" className="text-button" onClick={() => { setFamilyConnections(current => ({ ...current, loading: true })); supabase.rpc('get_my_user_connections').then(({ data, error }) => setFamilyConnections({ loading: false, items: data || [], error: error ? 'Your connections could not be loaded.' : '', workingId: null })); }} disabled={familyConnections.loading}><RefreshCw size={15} className={familyConnections.loading ? 'spin' : ''}/> Refresh</button>}</div>
       {!user ? <p className="dashboard-empty">Log in to see your connections and requests.</p>
