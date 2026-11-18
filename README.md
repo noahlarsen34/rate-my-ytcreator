@@ -6,6 +6,14 @@ A responsive React prototype for discovering, evaluating, and rating content cre
 
 ![Updated database schema](image/README/updated-schema.png)
 
+## Level 0
+
+![Level 0 sprint planning diagram](image/README/Sprint%20Retrospective%204-10.png)
+
+## Level 1
+
+![Level 1 sprint planning diagram](image/README/Sprint%20Retrospective%204-10%20(1).png)
+
 # Tech Stack Architecture Diagram
 
 ![1793834951624](image/README/1793834951624.png)
@@ -61,6 +69,18 @@ the dashboard only counts reviews submitted by the signed-in user.
 VITE_SUPABASE_URL=your-project-url
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
+
+### Admin dashboard
+
+The protected `/admin` page uses a Node.js Vercel API route. Add these server-only variables in Vercel under **Project Settings → Environment Variables**:
+
+```text
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+ADMIN_EMAILS=admin@example.com,second-admin@example.com
+```
+
+`SUPABASE_SERVICE_ROLE_KEY` must never use a `VITE_` prefix or be exposed in browser code. After adding the variables, redeploy the project. An authenticated account whose email appears in `ADMIN_EMAILS` will see an **Admin** link in the account menu and can manage users at `/admin`.
 
 Restart npm run dev after adding or changing these values. Do not commit .env.local; it is intentionally ignored by Git.
 
