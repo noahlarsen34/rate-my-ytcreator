@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, UserRound, X } from 'lucide-react';
 
 const emptyForm = { email: '', password: '', username: '', firstName: '', lastName: '', birthdate: '', phoneNumber: '', gender: '' };
+const isProfileIncomplete = user => !user.firstName?.trim() || !user.lastName?.trim() || !user.username?.trim();
 
 export function AdminUsers({ session, navigate, onAdminStatus }) {
   const [users, setUsers] = useState([]);
@@ -84,7 +85,7 @@ export function AdminUsers({ session, navigate, onAdminStatus }) {
 
   return <main className="page admin-page">
     <section className="admin-heading"><div><span className="kicker"><ShieldCheck size={16}/> ADMIN CONSOLE</span><h1>User management</h1><p>Create accounts, update user profiles, or remove accounts from Rate My Creator.</p></div></section>
-    <section className="admin-summary"><div><strong>{users.length}</strong><span>Total users</span></div><div><strong>{users.filter(user => user.lastSignInAt).length}</strong><span>Signed in before</span></div><div><strong>{users.filter(user => !user.username).length}</strong><span>Incomplete profiles</span></div></section>
+    <section className="admin-summary"><div><strong>{users.length}</strong><span>Total users</span></div><div><strong>{users.filter(user => user.lastSignInAt).length}</strong><span>Signed in before</span></div><div><strong>{users.filter(isProfileIncomplete).length}</strong><span>Incomplete profiles</span></div></section>
     <section className="admin-okr-section" aria-labelledby="admin-okr-heading"><h2 id="admin-okr-heading">OKR tracking</h2><div className="admin-okr-group"><h3>Parents are more informed about what their children are watching</h3><div className="admin-okr-grid"><div><strong>{metrics ? metrics.reviewLikes.toLocaleString() : '—'}</strong><span>Review votes</span><small>Positive and negative votes on reviews</small></div><div><strong>{metrics ? metrics.creatorsFollowed.toLocaleString() : '—'}</strong><span>Creators followed</span><small>Distinct user and creator follows</small></div><div><strong>{metrics ? metrics.searches.toLocaleString() : '—'}</strong><span>Searches</span><small>Submitted searches recorded</small></div></div></div><div className="admin-okr-group signup-okr-group"><h3>People share important information about creators</h3><div className="admin-okr-grid"><div><strong>{metrics ? metrics.signups.toLocaleString() : '—'}</strong><span>Sign-ups</span><small>Accounts in the user profile table</small></div><div><strong>{metrics ? metrics.reviews.toLocaleString() : '—'}</strong><span>Reviews submitted</span><small>Entries in the reviews table</small></div></div></div></section>
     <section className="panel admin-users-panel">
       <div className="admin-toolbar"><label><Search size={18}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search name, username, or email" aria-label="Search users"/></label><div className="admin-toolbar-actions"><button className="primary" onClick={openCreate}><Plus size={18}/> Add user</button><button className="secondary" onClick={loadUsers} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/> Refresh</button></div></div>
