@@ -47,10 +47,12 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
         </div>}
       </div>
     </section>
-    <section className="section featured">
+    <section className="section home-explore-layout">
+      <aside className="home-explore-sidebar"><span className="kicker">EXPLORE</span><h2>Explore creators</h2><p>Browse community ratings by topic.</p><button type="button" className="home-explore-link" onClick={() => searchCreators('')}>All creators <ChevronRight size={16}/></button>{[...new Set(creators.map(creator => creator.category).filter(Boolean))].slice(0, 8).map(category=><button type="button" className="home-explore-link" key={category} onClick={()=>searchCreators(category)}>{category}<ChevronRight size={16}/></button>)}</aside>
+      <div className="home-featured-creators"><section className="section featured">
       <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Creators in the community</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
       {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : creators.length ? <div className="card-grid">{creators.slice(0, 3).map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>No creators yet</h3><p>Creators will appear here when they are added to the community.</p></div>}
-    </section>
+    </section></div></section>
     <section className="trust-strip">
       <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>{siteCounts.followedCreators === null ? '—' : Number(siteCounts.followedCreators).toLocaleString()}</strong><span>creators followed</span></div>
     </section>
