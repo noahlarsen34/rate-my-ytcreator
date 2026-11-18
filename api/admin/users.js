@@ -76,6 +76,25 @@ async function listUsers(client) {
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
+async function loadOkrMetrics(client) {
+  const [likesResult, followsResult, searchesResult, usersResult, reviewsResult] = await Promise.all([
+    client.from('review_votes').select('review_id', { count: 'exact', head: true }),
+    client.rpc('get_followed_creator_count'),
+    client.from('user_search_history').select('search_id', { count: 'exact', head: true }),
+    client.from('users').select('user_id', { count: 'exact', head: true }),
+    client.from('reviews').select('review_id', { count: 'exact', head: true })
+  ]);
+  const metricError = [likesResult, followsResult, searchesResult, usersResult, reviewsResult].find(result => result.error)?.error;
+  if (metricError) throw metricError;
+  return {
+    reviewLikes: likesResult.count || 0,
+    creatorsFollowed: Number(followsResult.data) || 0,
+    searches: searchesResult.count || 0,
+    signups: usersResult.count || 0,
+    reviews: reviewsResult.count || 0
+  };
+}
+
 export default async function handler(request, response) {
   response.setHeader('Cache-Control', 'no-store');
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method)) {
@@ -89,7 +108,10 @@ export default async function handler(request, response) {
     if (authentication.error) return json(response, authentication.status, { error: authentication.error });
 
     if (request.method === 'GET' && request.query?.check === '1') return json(response, 200, { admin: true });
-    if (request.method === 'GET') return json(response, 200, { users: await listUsers(client) });
+    if (request.method === 'GET') {
+      const [users, metrics] = await Promise.all([listUsers(client), loadOkrMetrics(client)]);
+      return json(response, 200, { users, metrics });
+    }
 
     if (request.method === 'POST') {
       const email = clean(request.body?.email).toLowerCase();
