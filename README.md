@@ -4,7 +4,7 @@ A responsive React prototype for discovering, evaluating, and rating content cre
 
 # ERD
 
-![Updated database schema](image/README/updated-schema.png)
+![Updated database schema](image/README/erd-11-18-26.png)
 
 ## Level 0
 
