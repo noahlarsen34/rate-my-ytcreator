@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 
+// Store normalized searches for signed-in users so they contribute to search history and site metrics.
 export async function recordUserSearch(searchTerm) {
   const search = String(searchTerm || '').trim().replace(/\s+/g, ' ').slice(0, 200);
   if (!supabase || search.length < 2) return;

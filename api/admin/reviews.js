@@ -5,6 +5,8 @@ const clean = value => typeof value === 'string' ? value.trim() : '';
 const ageLevels = new Set(['Under 8', '8+', '13+', '16+', '18+', 'All ages']);
 const aiChoices = new Set(['Yes', 'No', 'Unsure']);
 
+// Administrative reads and writes use the server-only service role so RLS
+// cannot expose privileged review operations to a browser session.
 function serverClient() {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,9 +15,11 @@ function serverClient() {
 }
 
 function adminEmails() {
+  // Keep the admin allowlist in server environment settings, not client configuration.
   return new Set((process.env.ADMIN_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean));
 }
 
+// Authenticate every request before accessing review or creator records.
 async function authenticate(request, client) {
   const authorization = request.headers.authorization || '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -27,6 +31,7 @@ async function authenticate(request, client) {
 }
 
 async function listReviews(client) {
+  // Page through the review table, then resolve creator and reviewer labels in batches.
   const rows = [];
   const pageSize = 1000;
   for (let from = 0; ; from += pageSize) {
@@ -64,6 +69,7 @@ async function listReviews(client) {
       creatorId: row.creator_id,
       creatorName: [clean(creator?.first_name), clean(creator?.last_name)].filter(Boolean).join(' ') || 'Unknown creator',
       reviewerUserId: row.user_id || null,
+      // Only link reviewers whose review list is public; synthetic reviews have no account profile.
       reviewerProfileVisible: Boolean(reviewer) && reviewer.reviews_public !== false,
       reviewerName: row.review_source === 'synthetic_demo' ? row.seed_author_name || 'Demo reviewer' : fullName || (username ? `@${username}` : 'Unknown user'),
       reviewerDetail: row.review_source === 'synthetic_demo' ? 'Synthetic demo review' : username ? `@${username}` : clean(reviewer?.email) || 'Account profile unavailable',
@@ -81,6 +87,7 @@ async function listReviews(client) {
 }
 
 async function listCreators(client) {
+  // The create-review form uses this list for its creator selector.
   const creators = [];
   const pageSize = 1000;
   for (let from = 0; ; from += pageSize) {
@@ -99,6 +106,7 @@ async function listCreators(client) {
 }
 
 export default async function handler(request, response) {
+  // A single protected route serves the review table and its create, edit, and delete actions.
   response.setHeader('Cache-Control', 'no-store');
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method)) {
     response.setHeader('Allow', 'GET, POST, PATCH, DELETE');
@@ -111,11 +119,13 @@ export default async function handler(request, response) {
     if (authentication.error) return json(response, authentication.status, { error: authentication.error });
 
     if (request.method === 'GET') {
+      // Load the review rows and the creator selector options in parallel.
       const [reviews, creators] = await Promise.all([listReviews(client), listCreators(client)]);
       return json(response, 200, { reviews, creators });
     }
 
     if (request.method === 'POST') {
+      // New reviews are attached to an existing account and creator and follow the regular review schema.
       const userId = clean(request.body?.userId);
       const creatorId = clean(String(request.body?.creatorId || ''));
       const rating = Number(request.body?.overallRating);
@@ -168,6 +178,7 @@ export default async function handler(request, response) {
     if (!/^\d+$/.test(reviewId)) return json(response, 400, { error: 'A valid review ID is required.' });
 
     if (request.method === 'PATCH') {
+      // Update review content and ratings while leaving the assigned user and creator IDs unchanged.
       const rating = Number(request.body?.overallRating);
       const profanity = request.body?.profanity === null || request.body?.profanity === '' ? null : Number(request.body?.profanity);
       const substanceUse = request.body?.substanceUse === null || request.body?.substanceUse === '' ? null : Number(request.body?.substanceUse);
@@ -199,6 +210,7 @@ export default async function handler(request, response) {
       return json(response, 200, { message: 'Review updated.' });
     }
 
+    // Remove vote rows before deleting the review so linked vote records cannot be left behind.
     const { data: existingReview, error: lookupError } = await client.from('reviews').select('review_id').eq('review_id', reviewId).maybeSingle();
     if (lookupError) throw lookupError;
     if (!existingReview) return json(response, 404, { error: 'Review not found.' });

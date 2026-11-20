@@ -4,6 +4,7 @@ import { Play } from 'lucide-react';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { formatReview, generatedUsernameFor, isProfileComplete, pageFromPathname, pathForPage, selectedIdFromPathname } from './utils';
 import { Header } from './components/shared';
+// The homepage receives the app-wide creator list, global search state, and loading status.
 import { Home } from './pages/Home';
 import { DiscoverCreators } from './pages/DiscoverCreators';
 import { Profile as CreatorProfile } from './pages/CreatorProfile';
@@ -14,10 +15,13 @@ import { AccountSettings } from './pages/AccountSettings';
 import { UserProfile } from './pages/UserProfile';
 import { RateCreator } from './pages/RateCreator';
 import { LegalPage } from './pages/LegalPage';
+// The admin console owns the account and review tables, CRUD dialogs, and admin-specific API calls.
 import { AdminUsers } from './pages/AdminUsers';
+// Load the admin layout and table styling once so both tabs share the same visual system.
 import './admin.css';
 
 const initialsFor = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || 'YT';
+// Pages in this set require an authenticated session before their content is rendered.
 const protectedPages = new Set(['dashboard', 'admin', 'settings', 'rate', 'complete-profile']);
 const cleanYouTubeDescription = value => {
   const cleaned = String(value || '')
@@ -30,6 +34,7 @@ const cleanYouTubeDescription = value => {
   if (!cleaned) return 'This creator was imported from YouTube. Community details will appear as people contribute.';
   return cleaned.length > 360 ? `${cleaned.slice(0, 357).trimEnd()}…` : cleaned;
 };
+// Remembering the admin route lets sign-in and profile flows return to the console afterward.
 const returnablePages = new Set(['home', 'creators', 'family', 'profile', 'user-profile', 'privacy', 'terms', 'dashboard', 'admin', 'settings', 'rate']);
 const reviewSelect = 'review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, seed_batch_id, created_at, content_creators(channel_link)';
 const loadAllReviews = async () => {
@@ -59,6 +64,7 @@ const rememberPageDestination = destination => {
     window.localStorage.removeItem('lastViewedCreatorId');
   } catch { /* Storage may be unavailable in private browsing. */ }
 };
+// Convert database rows to the shared creator model used by the homepage, directory, and profiles.
 const creatorFromDatabase = (row, typeNames) => {
   const aiSummary = {
     aiReviewSummary: row.ai_review_summary || '',
@@ -96,6 +102,7 @@ const creatorFromDatabase = (row, typeNames) => {
   };
 };
 
+// Roll review ratings and family guidance into creator cards and profile summary fields.
 const creatorsWithReviewSummaries = (creators, reviews) => {
   const totals = new Map();
   for (const review of reviews) {
@@ -190,6 +197,7 @@ function App() {
   useEffect(() => {
     if (!session?.access_token) { setIsAdmin(false); return; }
     let active = true;
+    // Ask the server to validate the admin allowlist before showing the Admin navigation link.
     fetch('/api/admin/users?check=1', { headers: { Authorization: `Bearer ${session.access_token}` } }).then(response => {
       if (active) setIsAdmin(response.ok);
     }).catch(() => { if (active) setIsAdmin(false); });
@@ -396,6 +404,7 @@ function App() {
   };
 
   useEffect(() => {
+    // Load creators and reviews once, then enrich that shared data for all pages including Home.
     async function loadDatabaseReviews() {
       if (!isSupabaseConfigured) {
         setAppCreators([]);
@@ -652,6 +661,7 @@ function App() {
   return <>
     {shell&&<Header navigate={navigate} query={query} setQuery={setQuery} user={session?.user} profileUsername={profile?.username} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} isAdmin={isAdmin} sidebarCollapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed(value => !value)}/>}
     <div className={`${shell ? 'app-main with-sidebar' : 'app-main'} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    {/* Pass shared, review-enriched creators into the homepage for rankings, categories, and suggestions. */}
     {page==='home'&&<Home navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} creatorsLoading={creatorsLoading}/>}
     {(page==='creators'||page==='family')&&<DiscoverCreators key={page} initialSearchType={page==='family'?'people':'creators'} navigate={navigate} query={query} setQuery={setQuery} creators={appCreators} user={session?.user}/>}
     {page==='profile'&&(creator?<CreatorProfile creator={creator} navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session?.user} reviewFocusId={selectedReviewId} onReviewVoteCountsChange={handleReviewVoteCountsChange} isFollowing={followingIds.has(String(creator.databaseId))} followerCount={Number(followerCounts[String(creator.databaseId)] || 0)} onToggleFollow={() => toggleFollow(creator)}/>:<main className="page"><div className="empty"><h3>Creator not found</h3><p>There are no creators to show yet.</p><button className="secondary" onClick={() => navigate('creators')}>Discover creators</button></div></main>)}
@@ -660,6 +670,7 @@ function App() {
     {(page==='signup'||page==='login')&&<AccountSignIn type={page} navigate={navigate} requiresAuth={requiresAuth}/>}
     {page==='complete-profile'&&session?.user&&<CompleteProfile user={session.user} profile={profile} initialError={profileError} onComplete={finishProfile} onLogout={logoutFromOnboarding}/>}
     {page==='dashboard'&&session?.user&&<Dashboard navigate={navigate} reviews={reviews} reviewsLoading={reviewsLoading} reviewsError={reviewsError} user={session.user} profile={profile} creators={appCreators} followingIds={followingIds}/>}
+    {/* Mount the admin console only for an authenticated user; the API independently verifies admin access. */}
     {page==='admin'&&session?.user&&<AdminUsers session={session} navigate={navigate} onAdminStatus={setIsAdmin}/>}
     {page==='settings'&&<AccountSettings navigate={navigate} user={session.user} session={session} profile={profile} onProfileChanged={handleProfileChanged} onAvatarUpload={uploadAvatar} avatarUrl={profile?.avatar_url || session?.user?.user_metadata?.avatar_url || session?.user?.user_metadata?.picture} avatarUploading={avatarUploading} avatarError={avatarError} onCreatorsChanged={() => setCreatorRefresh(value => value + 1)}/>}
     {page==='user-profile'&&selected&&<UserProfile userId={selected} navigate={navigate} returnTo={window.history.state?.returnTo} isOwnProfile={session?.user?.id === selected} user={session?.user}/>}
