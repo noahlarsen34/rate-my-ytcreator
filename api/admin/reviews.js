@@ -31,7 +31,7 @@ async function listReviews(client) {
   const pageSize = 1000;
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await client.from('reviews')
-      .select('review_id, user_id, creator_id, overall_rating, review_text, review_source, seed_author_name, created_at')
+      .select('review_id, user_id, creator_id, overall_rating, profanity, substance_use, age_level, review_text, bias_text, uses_ai, review_source, seed_author_name, created_at')
       .order('created_at', { ascending: false })
       .range(from, from + pageSize - 1);
     if (error) throw error;
@@ -68,7 +68,12 @@ async function listReviews(client) {
       reviewerName: row.review_source === 'synthetic_demo' ? row.seed_author_name || 'Demo reviewer' : fullName || (username ? `@${username}` : 'Unknown user'),
       reviewerDetail: row.review_source === 'synthetic_demo' ? 'Synthetic demo review' : username ? `@${username}` : clean(reviewer?.email) || 'Account profile unavailable',
       overallRating: Number(row.overall_rating),
+      profanity: row.profanity === null ? null : Number(row.profanity),
+      substanceUse: row.substance_use === null ? null : Number(row.substance_use),
+      ageLevel: row.age_level || '',
       reviewText: row.review_text || '',
+      biasText: row.bias_text || '',
+      usesAi: row.uses_ai || '',
       reviewSource: row.review_source || 'community',
       createdAt: row.created_at
     };
@@ -164,12 +169,30 @@ export default async function handler(request, response) {
 
     if (request.method === 'PATCH') {
       const rating = Number(request.body?.overallRating);
+      const profanity = request.body?.profanity === null || request.body?.profanity === '' ? null : Number(request.body?.profanity);
+      const substanceUse = request.body?.substanceUse === null || request.body?.substanceUse === '' ? null : Number(request.body?.substanceUse);
+      const ageLevel = clean(request.body?.ageLevel);
       const reviewText = clean(request.body?.reviewText);
+      const biasText = clean(request.body?.biasText);
+      const usesAi = clean(request.body?.usesAi) || null;
       if (!Number.isFinite(rating) || rating < 0.5 || rating > 5 || Math.round(rating * 2) !== rating * 2) {
         return json(response, 400, { error: 'Overall rating must be between 0.5 and 5 in half-star increments.' });
       }
       if (!reviewText || reviewText.length > 10000) return json(response, 400, { error: 'Review description is required and must be 10,000 characters or fewer.' });
-      const { data, error } = await client.from('reviews').update({ overall_rating: rating, review_text: reviewText })
+      if (profanity !== null && (!Number.isInteger(profanity) || profanity < 0 || profanity > 5)) return json(response, 400, { error: 'Profanity frequency must be between 0 and 5, or not evaluated.' });
+      if (substanceUse !== null && (!Number.isInteger(substanceUse) || substanceUse < 0 || substanceUse > 5)) return json(response, 400, { error: 'Substance use frequency must be between 0 and 5, or not evaluated.' });
+      if (!ageLevels.has(ageLevel)) return json(response, 400, { error: 'Select a valid recommended age level.' });
+      if (biasText.length > 10000) return json(response, 400, { error: 'Sponsors or viewpoints must be 10,000 characters or fewer.' });
+      if (usesAi !== null && !aiChoices.has(usesAi)) return json(response, 400, { error: 'Select a valid AI use value.' });
+      const { data, error } = await client.from('reviews').update({
+        overall_rating: rating,
+        profanity,
+        substance_use: substanceUse,
+        age_level: ageLevel,
+        review_text: reviewText,
+        bias_text: biasText,
+        uses_ai: usesAi
+      })
         .eq('review_id', reviewId).select('review_id').maybeSingle();
       if (error) throw error;
       if (!data) return json(response, 404, { error: 'Review not found.' });
