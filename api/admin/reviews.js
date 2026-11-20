@@ -46,7 +46,7 @@ async function listReviews(client) {
       ? client.from('content_creators').select('creator_id, first_name, last_name').in('creator_id', creatorIds)
       : Promise.resolve({ data: [], error: null }),
     reviewerIds.length
-      ? client.from('users').select('user_id, first_name, last_name, username, email').in('user_id', reviewerIds)
+      ? client.from('users').select('user_id, first_name, last_name, username, email, reviews_public').in('user_id', reviewerIds)
       : Promise.resolve({ data: [], error: null })
   ]);
   if (creatorResult.error) throw creatorResult.error;
@@ -63,6 +63,8 @@ async function listReviews(client) {
       id: String(row.review_id),
       creatorId: row.creator_id,
       creatorName: [clean(creator?.first_name), clean(creator?.last_name)].filter(Boolean).join(' ') || 'Unknown creator',
+      reviewerUserId: row.user_id || null,
+      reviewerProfileVisible: Boolean(reviewer) && reviewer.reviews_public !== false,
       reviewerName: row.review_source === 'synthetic_demo' ? row.seed_author_name || 'Demo reviewer' : fullName || (username ? `@${username}` : 'Unknown user'),
       reviewerDetail: row.review_source === 'synthetic_demo' ? 'Synthetic demo review' : username ? `@${username}` : clean(reviewer?.email) || 'Account profile unavailable',
       overallRating: Number(row.overall_rating),
