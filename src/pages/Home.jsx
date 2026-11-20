@@ -5,20 +5,24 @@ import { supabase } from '../lib/supabase';
 import { recordUserSearch } from '../lib/searchHistory';
 
 export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
+  // Homepage-only totals start as null so the page can distinguish loading/error from a real zero.
   const [siteCounts, setSiteCounts] = useState({ ratings: null, creators: null });
   const [totalVotes, setTotalVotes] = useState(null);
   const [homeQuery, setHomeQuery] = useState(query);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  // Search the shared creator list locally and cap autocomplete results to a short dropdown.
   const suggestions = useMemo(() => {
     const term = homeQuery.trim().toLowerCase();
     return term ? creators.filter(creator => `${creator.name} ${creator.handle || ''} ${creator.topic} ${creator.category}`.toLowerCase().includes(term)).slice(0, 8) : [];
   }, [creators, homeQuery]);
+  // Record an authenticated search, synchronize app-wide search state, and open creator results.
   const searchCreators = value => {
     void recordUserSearch(value);
     setQuery(value);
     navigate('creators');
   };
 
+  // Load exact row counts for reviews and creators without fetching their row contents.
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -34,6 +38,7 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
     return () => { active = false; };
   }, []);
 
+  // Count upvotes and downvotes through the aggregate RPC, requesting review IDs in bounded pages.
   useEffect(() => {
     if (!supabase) {
       setTotalVotes(0);
@@ -71,11 +76,13 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
     return () => { active = false; };
   }, []);
 
+  // Rank rated creators by score, then review count and name, and show only the top three.
   const topRatedCreators = creators
     .filter(creator => creator.reviews > 0)
     .slice()
     .sort((first, second) => second.score - first.score || second.reviews - first.reviews || first.name.localeCompare(second.name))
     .slice(0, 3);
+  // Count creators per category, sort the most common categories first, and show three quick links.
   const topCategories = [...creators.reduce((counts, creator) => {
     if (creator.category) counts.set(creator.category, (counts.get(creator.category) || 0) + 1);
     return counts;
@@ -85,6 +92,7 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
     .map(([category]) => category);
 
   return <main>
+    {/* The hero introduces the service and pairs the search box with live creator suggestions. */}
     <section className="hero">
       <div className="eyebrow"><Sparkles size={15} /> Make informed choices about online content</div>
       <h1>Know what’s worth<br /><em>your watch time.</em></h1>
@@ -98,17 +106,23 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
         </div>}
       </div>
     </section>
+    {/* Pathway cards provide quick routes to creator discovery and family connections. */}
     <section className="home-pathways" aria-label="Choose a starting point">
+      {/* Category buttons search the selected topic; the All creators button clears that search. */}
       <div className="home-pathway-card home-explore-card"><div className="home-explore-heading"><span className="home-pathway-icon"><Search size={20}/></span><span><b>Explore creators</b><small>Browse a few of the top categories, or view all creators.</small></span></div><div className="home-explore-links">{topCategories.map(category=><button type="button" className="home-explore-link" key={category} onClick={()=>searchCreators(category)}>{category}<ChevronRight size={16}/></button>)}<button type="button" className="home-explore-link all-creators-link" onClick={() => searchCreators('')}>All creators <ChevronRight size={16}/></button></div></div>
       <button className="home-pathway-card" onClick={() => navigate('family')}><span className="home-pathway-icon"><UsersRound size={20}/></span><span><b>Connect with family</b><small>Share creator subscriptions so your family can compare community ratings and make informed choices about what to watch.</small></span><ChevronRight size={19}/></button>
     </section>
+    {/* Feature up to three rated creators, with loading and empty states for missing data. */}
     <section className="section featured">
       <div className="section-title"><div><span className="kicker">YOUTUBE CREATORS</span><h2>Top rated creators</h2></div><button className="text-button" onClick={() => navigate('creators')}>View all <ChevronRight size={18} /></button></div>
       {creatorsLoading ? <div className="empty"><h3>Loading creators…</h3></div> : topRatedCreators.length ? <div className="card-grid">{topRatedCreators.map(c => <CreatorCard key={c.id} creator={c} navigate={navigate} />)}</div> : <div className="empty"><h3>{creators.length ? 'No community ratings yet' : 'No creators yet'}</h3><p>{creators.length ? 'Rated creators will appear here when the community shares reviews.' : 'Creators will appear here when they are added to the community.'}</p></div>}
     </section>
+    {/* Site-wide activity counts use an em dash when their Supabase request fails or is unavailable. */}
     <section className="trust-strip">
+      {/* Ratings are rounded down to the nearest five and suffixed with “+” to present an approximate total. */}
       <div><strong>{siteCounts.ratings === null ? '—' : `${(Math.floor(siteCounts.ratings / 5) * 5).toLocaleString()}+`}</strong><span>community ratings</span></div><div><strong>{siteCounts.creators === null ? '—' : siteCounts.creators.toLocaleString()}</strong><span>creators</span></div><div><strong>{totalVotes === null ? '—' : totalVotes.toLocaleString()}</strong><span>review votes</span></div>
     </section>
+    {/* Explain the optional Google and YouTube connection and link to the full privacy policy. */}
     <section className="section google-data-summary" aria-labelledby="google-data-heading">
       <span className="kicker">OPTIONAL YOUTUBE CONNECTION</span>
       <h2 id="google-data-heading">How Rate My Creator works with Google and YouTube</h2>
@@ -117,6 +131,7 @@ export function Home({ navigate, query, setQuery, creators, creatorsLoading }) {
       <p>Google user data is not sold, used for advertising or credit decisions, used to train artificial intelligence models, or used to create or distribute AI-generated non-consensual intimate imagery.</p>
       <button className="text-button" onClick={() => navigate('privacy')}>Read the Rate My Creator Privacy Policy <ChevronRight size={18}/></button>
     </section>
+    {/* The final call to action opens the review form for the current viewer. */}
     <section className="cta"><div><span className="kicker">HELP OTHERS MAKE INFORMED CHOICES</span><h2>Notice something viewers should know?</h2><p>Share a specific review to help young viewers and families make informed choices.</p></div><button className="primary" onClick={() => navigate('rate')}>Write a rating <ChevronRight size={18} /></button></section>
   </main>;
 }

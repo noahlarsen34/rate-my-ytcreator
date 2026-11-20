@@ -4,6 +4,8 @@ const json = (response, status, body) => response.status(status).json(body);
 const clean = value => typeof value === 'string' ? value.trim() : '';
 const allowedGenders = new Set(['M', 'F', 'other']);
 
+// Server-side Supabase access is required here for Auth administration and
+// private account records. These credentials must never be sent to the browser.
 function serverClient() {
   const url = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -12,9 +14,11 @@ function serverClient() {
 }
 
 function adminEmails() {
+  // The allowlist is configured as comma-separated email addresses in the server environment.
   return new Set((process.env.ADMIN_EMAILS || '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean));
 }
 
+// Every API request verifies the caller's session and then checks the admin allowlist.
 async function authenticate(request, client) {
   const authorization = request.headers.authorization || '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
@@ -26,6 +30,7 @@ async function authenticate(request, client) {
 }
 
 function profilePayload(body, userId, email) {
+  // Normalize and validate editable profile fields before writing them to public.users.
   const username = clean(body.username);
   if (!/^[A-Za-z0-9_-]{3,30}$/.test(username)) throw new Error('Username must be 3–30 characters using letters, numbers, underscores, or hyphens.');
   const firstName = clean(body.firstName);
@@ -45,6 +50,7 @@ function profilePayload(body, userId, email) {
 }
 
 async function listUsers(client) {
+  // Auth Admin paginates separately from public.users, so combine both sources by user ID.
   const users = [];
   for (let page = 1; page <= 10; page += 1) {
     const { data, error } = await client.auth.admin.listUsers({ page, perPage: 100 });
@@ -77,6 +83,7 @@ async function listUsers(client) {
 }
 
 async function loadOkrMetrics(client) {
+  // Fetch all dashboard totals together; any failed source invalidates the metrics response.
   const [likesResult, followsResult, searchesResult, usersResult, reviewsResult] = await Promise.all([
     client.from('review_votes').select('review_id', { count: 'exact', head: true }),
     client.rpc('get_followed_creator_count'),
@@ -96,6 +103,7 @@ async function loadOkrMetrics(client) {
 }
 
 export default async function handler(request, response) {
+  // This route supports account reads, creation, profile updates, and deletion only.
   response.setHeader('Cache-Control', 'no-store');
   if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(request.method)) {
     response.setHeader('Allow', 'GET, POST, PATCH, DELETE');
@@ -109,11 +117,13 @@ export default async function handler(request, response) {
 
     if (request.method === 'GET' && request.query?.check === '1') return json(response, 200, { admin: true });
     if (request.method === 'GET') {
+      // The account tab and OKR cards share this response to avoid separate page requests.
       const [users, metrics] = await Promise.all([listUsers(client), loadOkrMetrics(client)]);
       return json(response, 200, { users, metrics });
     }
 
     if (request.method === 'POST') {
+      // Create the Auth account first, then its profile; roll the account back if profile setup fails.
       const email = clean(request.body?.email).toLowerCase();
       const password = String(request.body?.password || '');
       if (!/^\S+@\S+\.\S+$/.test(email)) return json(response, 400, { error: 'Enter a valid email address.' });
@@ -135,6 +145,7 @@ export default async function handler(request, response) {
     if (!userId) return json(response, 400, { error: 'A user ID is required.' });
 
     if (request.method === 'PATCH') {
+      // Email remains Auth-managed; this action updates the user's editable profile details.
       const { data: authData, error: authError } = await client.auth.admin.getUserById(userId);
       if (authError || !authData.user) return json(response, 404, { error: 'User not found.' });
       const payload = profilePayload(request.body || {}, userId, authData.user.email || clean(request.body?.email));
@@ -144,6 +155,7 @@ export default async function handler(request, response) {
       return json(response, 200, { message: 'User updated.' });
     }
 
+    // Prevent an admin from removing the same account currently authorizing this request.
     if (userId === authentication.user.id) return json(response, 400, { error: 'You cannot delete your own administrator account.' });
     const { error } = await client.auth.admin.deleteUser(userId);
     if (error) throw error;

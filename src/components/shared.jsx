@@ -23,6 +23,7 @@ export function ReviewAuthor({ review, navigate, currentUserId }) {
   </button>;
 }
 
+// Reusable search form used by the homepage hero, header navigation, and creator browsing screens.
 export function SearchBox({ value, setValue, onSubmit, onKeyDown, onFocus, compact = false, placeholder = 'Search content creators', ariaLabel = 'Search content creators', combobox = false, expanded = false, controls, activeDescendant }) {
   return (
     <form className={`search-box ${compact ? 'compact' : ''}`} onSubmit={e => { e.preventDefault(); onSubmit?.(); }}>
@@ -110,11 +111,13 @@ export function Header({ navigate, query, setQuery, creators = [], user, profile
       <button className="sidebar-link" title="Explore creators" onClick={() => goTo('creators')}><Compass size={19}/><span>Explore creators</span></button>
       <button className="sidebar-link" title="Family connections" onClick={() => goTo('family')}><UsersRound size={19}/><span>Family connections</span></button>
       <button className="sidebar-link" title="My dashboard" onClick={() => goTo('dashboard')}><LayoutDashboard size={19}/><span>My dashboard</span></button>
+      {/* The protected console link appears only after the server confirms this session is an administrator. */}
       {isAdmin&&<button className="sidebar-link" title="Admin" onClick={() => goTo('admin')}><ShieldCheck size={19}/><span>Admin</span></button>}
     </aside>
   </>;
 }
 
+// Shared creator summary card; the wide variant is used in result lists, while Home uses the grid card.
 export function CreatorCard({ creator, navigate, wide = false }) {
   return (
     <button className={`creator-card ${wide ? 'wide' : ''}`} onClick={() => navigate('profile', creator.id)}>
